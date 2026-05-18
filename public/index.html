@@ -1,0 +1,3878 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReelMaker</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
+<script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<style>
+:root {
+  --bg: #121212;
+  --surface: #1e1e1e;
+  --surface-alt: #2a2a2a;
+  --text: #ececec;
+  --text-muted: #888;
+  --accent: #ff6b4a;
+  --accent-hover: #ff8a6a;
+  --border: #333;
+  --radius: 10px;
+  --mm-bg: #0d0d0d;
+  --mm-text: #ffffff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.toolbar h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+.toolbar select,
+.toolbar button,
+.toolbar input[type="text"] {
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.toolbar select:hover,
+.toolbar button:hover,
+.toolbar input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+.toolbar button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.toolbar button.primary:hover {
+  background: var(--accent-hover);
+}
+
+.toolbar button.danger {
+  background: transparent;
+  border-color: #ff6b4a;
+  color: #ff6b4a;
+}
+
+.toolbar button.danger:hover {
+  background: #ff6b4a20;
+}
+
+.toolbar .spacer { flex: 1; }
+
+/* Main content */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-pane {
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+
+.editor-pane textarea {
+  flex: 1;
+  padding: 16px;
+  background: var(--surface);
+  color: var(--text);
+  border: none;
+  resize: none;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  outline: none;
+  tab-size: 2;
+}
+
+.editor-pane textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.preview-pane {
+  flex: 1;
+  position: relative;
+  background: var(--mm-bg);
+  padding: 8px;
+}
+
+.preview-pane svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Bottom bar */
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.bottom-bar label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bottom-bar .source-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.bottom-bar .source-group label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.bottom-bar input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.bottom-bar input[type="color"] {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+}
+
+.bottom-bar input[type="file"] {
+  display: none;
+}
+
+.bottom-bar .file-label {
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bottom-bar .file-label:hover {
+  border-color: var(--accent);
+}
+
+/* Recording mode */
+body.recording .toolbar,
+body.recording .editor-pane,
+body.recording .bottom-bar {
+  display: none !important;
+}
+
+body.recording .main {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #000;
+}
+
+/* Content constrained to center 9:16 column — this is the recorded area */
+body.recording .preview-pane {
+  width: calc(100vh * 9 / 16);
+  height: var(--split-top, 50%);
+  border: none;
+  flex-shrink: 0;
+}
+
+body.recording .bg-layer {
+  display: flex;
+  width: calc(100vh * 9 / 16);
+  height: var(--split-bottom, 50%);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* --- Controls in LEFT margin (visible, not recorded) --- */
+.rec-controls {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 24px;
+  transform: translateY(-50%);
+  z-index: 9999;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+body.recording .rec-controls {
+  display: flex;
+}
+
+.rec-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: rgba(30,30,30,0.8);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+  transition: transform 0.15s;
+}
+
+.rec-btn:hover {
+  transform: scale(1.1);
+}
+
+.rec-btn .dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ff6b4a;
+  transition: all 0.2s;
+}
+
+.rec-btn.is-recording .dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.rec-timer {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(8px);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-variant-numeric: tabular-nums;
+  display: none;
+  white-space: nowrap;
+}
+
+.rec-timer.visible {
+  display: block;
+}
+
+.rec-timer .live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff6b4a;
+  margin-right: 6px;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.rec-exit {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  position: fixed;
+  bottom: 16px;
+  left: 24px;
+  z-index: 9999;
+  display: none;
+}
+
+body.recording .rec-exit {
+  display: block;
+}
+
+/* --- Teleprompter in RIGHT margin (visible, not recorded) --- */
+.teleprompter {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: calc((100vw - 100vh * 9 / 16) / 2 - 48px);
+  max-width: 360px;
+  min-width: 160px;
+  max-height: 55vh;
+}
+
+body.recording .teleprompter {
+  display: flex;
+  flex-direction: column;
+}
+
+.teleprompter-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+  padding: 6px 12px;
+  letter-spacing: 0.5px;
+}
+
+.teleprompter textarea {
+  flex: 1;
+  min-height: 200px;
+  background: rgba(30,30,30,0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #f0f0f0;
+  font-size: 16px;
+  line-height: 1.7;
+  padding: 16px;
+  resize: vertical;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.teleprompter textarea::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+
+.teleprompter textarea:focus {
+  border-color: rgba(255,255,255,0.25);
+}
+
+.teleprompter .font-controls {
+  display: flex;
+  gap: 6px;
+  padding: 6px 0;
+  justify-content: flex-end;
+}
+
+.teleprompter .font-controls button {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.teleprompter .font-controls button:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* Background layer (hidden in edit mode) */
+.bg-layer {
+  display: none;
+}
+
+.bg-layer video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bg-layer .solid-bg {
+  width: 100%;
+  height: 100%;
+}
+
+.bg-layer #bg3d {
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+
+.bg-layer #bg3dVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.prerender-status {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  background: rgba(30,30,30,0.7);
+  backdrop-filter: blur(8px);
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  display: none;
+}
+
+.prerender-status.visible {
+  display: block;
+}
+
+/* 3D scene selector */
+.scene-select {
+  display: none;
+  margin-left: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.scene-select:hover {
+  border-color: var(--accent);
+}
+
+/* Split ratio dropdown */
+.split-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Markmap styling */
+.preview-pane svg#markmap {
+  background: var(--mm-bg);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Prevent accidental text selection on mindmap */
+.preview-pane svg#markmap,
+.preview-pane svg#markmap * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Custom cursor for interactive nodes */
+svg#markmap .markmap-node {
+  cursor: pointer;
+}
+
+svg#markmap .markmap-node:hover foreignObject * {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--mm-text) 30%, transparent);
+  text-underline-offset: 3px;
+}
+
+/* Force text color on foreignObject HTML nodes */
+svg#markmap foreignObject div,
+svg#markmap foreignObject span,
+svg#markmap foreignObject p,
+svg#markmap foreignObject * {
+  color: var(--mm-text) !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+}
+
+/* SVG text fallback */
+svg#markmap text {
+  fill: var(--mm-text) !important;
+}
+
+/* Recording mode */
+body.recording .preview-pane svg#markmap {
+  background: var(--mm-bg);
+  border-radius: 0;
+}
+
+/* --- Slide renderer --- */
+.slide-container {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: var(--mm-bg);
+  overflow: hidden;
+}
+
+.slide-container.visible {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide-card {
+  width: 85%;
+  max-height: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: slideIn 0.4s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-card .slide-img {
+  max-width: 100%;
+  max-height: 45%;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.slide-card .slide-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--mm-text);
+  text-align: center;
+}
+
+.slide-card .slide-items {
+  list-style: none;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slide-card .slide-items li {
+  font-size: 18px;
+  color: var(--mm-text);
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.slide-nav {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 20;
+}
+
+.slide-nav .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mm-text) 25%, transparent);
+  transition: background 0.2s;
+}
+
+.slide-nav .dot.active {
+  background: var(--accent);
+  width: 20px;
+  border-radius: 4px;
+}
+
+/* Layout mode */
+body.layout .toolbar { flex-shrink: 0; }
+body.layout .editor-pane { display: none !important; }
+body.layout .bottom-bar { display: none !important; }
+
+body.layout .main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+body.layout .preview-pane {
+  width: calc(100vh * 9 / 16 * 0.9);
+  height: 90vh;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* --- Whiteboard overlay (canvas + images) --- */
+.wb-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.wb-layer.active {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.wb-layer canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Draggable images on whiteboard */
+.wb-img {
+  position: absolute;
+  cursor: grab;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  max-width: 45%;
+  max-height: 40%;
+  object-fit: contain;
+  z-index: 11;
+}
+
+.wb-img:hover {
+  border-color: rgba(255,255,255,0.4);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+
+.wb-img.dragging {
+  cursor: grabbing;
+  border-color: var(--accent);
+  opacity: 0.9;
+}
+
+/* Drawing toolbar — left sidebar in recording mode */
+.draw-tools {
+  display: none;
+  position: fixed;
+  left: 24px;
+  bottom: 50px;
+  z-index: 9999;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+body.recording .draw-tools,
+body.layout .draw-tools {
+  display: flex;
+}
+
+.draw-tools button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.15);
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.draw-tools button:hover {
+  border-color: rgba(255,255,255,0.4);
+}
+
+.draw-tools button.active {
+  border-color: var(--accent);
+  background: rgba(255,107,74,0.25);
+}
+
+.draw-tools .color-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.3);
+  cursor: pointer;
+}
+
+.draw-tools input[type="color"] {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.draw-tools .sep {
+  width: 28px;
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+  margin: 2px 0;
+}
+
+/* Edit mode toolbar (non-recording) */
+.edit-draw-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.edit-draw-tools button {
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.edit-draw-tools button:hover {
+  border-color: var(--accent);
+}
+
+.edit-draw-tools button.active {
+  border-color: var(--accent);
+  background: rgba(255,107,74,0.15);
+}
+
+/* --- Storyboard Panel (recording mode, right side above teleprompter) --- */
+.storyboard-panel {
+  display: none;
+  position: fixed;
+  top: 16px;
+  right: 24px;
+  z-index: 9999;
+  width: calc((100vw - 100vh * 9 / 16) / 2 - 48px);
+  max-width: 360px;
+  min-width: 160px;
+}
+
+body.recording .storyboard-panel {
+  display: block;
+}
+
+.storyboard-panel-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+  padding: 6px 12px;
+  letter-spacing: 0.5px;
+}
+
+.storyboard-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.sb-thumb {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.1);
+  transition: border-color 0.15s, transform 0.15s;
+  background: rgba(30,30,30,0.6);
+}
+
+.sb-thumb:hover {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.sb-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sb-thumb .sb-index {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.sb-thumb .sb-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  color: #fff;
+  background: rgba(220,40,40,0.7);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+}
+
+.sb-thumb:hover .sb-del {
+  opacity: 1;
+}
+
+/* Storyboard overlay — covers markmap area */
+.storyboard-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: none;
+  background: var(--mm-bg);
+  animation: sbFadeIn 0.25s ease;
+  overflow: hidden;
+}
+
+.storyboard-overlay.visible {
+  display: block;
+}
+
+.storyboard-overlay img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  user-select: none;
+}
+
+@keyframes sbFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Bottom bar storyboard section */
+.storyboard-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sb-add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+}
+
+.sb-add-btn:hover {
+  border-color: var(--accent);
+}
+
+.sb-bar-thumbs {
+  display: flex;
+  gap: 4px;
+  max-width: 300px;
+  overflow-x: auto;
+}
+
+.sb-bar-thumbs .sb-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: grab;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.sb-bar-thumbs .sb-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sb-bar-thumbs .sb-mini .sb-mini-del {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  background: rgba(220,40,40,0.8);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+}
+
+.sb-bar-thumbs .sb-mini:hover .sb-mini-del {
+  opacity: 1;
+}
+
+/* Asset library picker modal */
+.asset-picker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+}
+
+.asset-picker-body {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.asset-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.asset-picker-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.asset-picker-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.asset-picker-item {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.asset-picker-item:hover {
+  border-color: var(--accent);
+}
+
+.asset-picker-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 0;
+}
+
+/* ── Subtitle Editor Modal ── */
+.sub-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px);
+}
+
+.sub-modal-body {
+  background: var(--surface);
+  border-radius: var(--radius);
+  max-width: 900px;
+  width: 94%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.sub-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sub-modal-header h2 {
+  font-size: 18px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sub-modal-header .sub-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background .15s;
+}
+
+.sub-modal-header .sub-close:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.sub-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.sub-initial-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.sub-initial-actions button {
+  padding: 10px 24px;
+  border-radius: 20px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.sub-initial-actions .sub-btn-download {
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.sub-initial-actions .sub-btn-download:hover {
+  background: var(--border);
+}
+
+.sub-initial-actions .sub-btn-subtitle {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sub-initial-actions .sub-btn-subtitle:hover {
+  background: var(--accent-hover);
+}
+
+.sub-video-preview {
+  width: 100%;
+  max-height: 40vh;
+  border-radius: 8px;
+  background: #000;
+  display: block;
+  margin: 0 auto;
+}
+
+.sub-video-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+}
+
+.sub-video-container canvas {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  max-height: 40vh;
+}
+
+.sub-progress {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.sub-progress .sub-spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: subSpin .8s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes subSpin {
+  to { transform: rotate(360deg); }
+}
+
+.sub-segments {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.sub-segment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .12s;
+}
+
+.sub-segment:last-child {
+  border-bottom: none;
+}
+
+.sub-segment:hover {
+  background: var(--surface-alt);
+}
+
+.sub-segment.active {
+  background: rgba(255,107,74,0.12);
+  border-left: 3px solid var(--accent);
+}
+
+.sub-segment-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: monospace;
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+.sub-segment-text {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 13px;
+  resize: none;
+  min-height: 28px;
+  font-family: inherit;
+}
+
+.sub-segment-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sub-segment-del {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color .15s;
+}
+
+.sub-segment-del:hover {
+  color: #e55;
+}
+
+.sub-style-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--surface-alt);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.sub-style-bar label {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sub-style-bar select,
+.sub-style-bar input[type="color"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.sub-style-bar input[type="color"] {
+  width: 30px;
+  height: 26px;
+  padding: 1px;
+  cursor: pointer;
+}
+
+.sub-style-bar input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.sub-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.sub-actions button {
+  padding: 8px 22px;
+  border-radius: 20px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.sub-actions .sub-btn-cancel {
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.sub-actions .sub-btn-cancel:hover {
+  background: var(--border);
+}
+
+.sub-actions .sub-btn-export {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sub-actions .sub-btn-export:hover {
+  background: var(--accent-hover);
+}
+
+.sub-actions .sub-btn-export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sub-export-progress {
+  width: 100%;
+  text-align: center;
+  padding: 8px 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>ReelMaker</h1>
+  <select id="topicSelect"></select>
+  <input type="text" id="topicName" placeholder="主題名稱" style="width:120px">
+  <button id="btnNew">新建</button>
+  <button id="btnDelete" class="danger">刪除</button>
+  <span class="spacer"></span>
+  <div class="source-group" style="margin-right:12px">
+    <label><input type="radio" name="renderMode" value="mindmap" checked> 心智圖</label>
+    <label><input type="radio" name="renderMode" value="slides"> 簡報</label>
+  </div>
+  <select id="mmTheme">
+    <option value="navy">深藍</option>
+    <option value="dark">暗黑</option>
+    <option value="light">淺色</option>
+    <option value="cream">奶油</option>
+  </select>
+  <button id="btnLayout">排版</button>
+  <button id="btnRecord" class="primary">錄影</button>
+  <a href="/admin" target="_blank" style="font-size:12px;color:var(--text-muted);text-decoration:none;margin-left:4px" title="拍攝企劃後台">企劃</a>
+</div>
+
+<div class="main">
+  <div class="editor-pane">
+    <textarea id="editor" placeholder="# 你的主題&#10;## 第一點&#10;- 子項目 A&#10;- 子項目 B&#10;## 第二點&#10;- 子項目 C"></textarea>
+  </div>
+  <div class="preview-pane" id="previewPane">
+    <svg id="markmap"></svg>
+    <div class="slide-container" id="slideContainer"></div>
+    <div class="slide-nav" id="slideNav"></div>
+    <div class="storyboard-overlay" id="storyboardOverlayInner"></div>
+    <div class="wb-layer" id="wbLayer">
+      <canvas id="wbCanvas"></canvas>
+    </div>
+  </div>
+  <div class="bg-layer" id="bgLayer">
+    <div class="solid-bg" id="solidBg"></div>
+    <video id="bgVideo" loop muted playsinline></video>
+    <video id="webcamVideo" autoplay muted playsinline></video>
+    <canvas id="bg3d"></canvas>
+    <video id="bg3dVideo" loop muted playsinline></video>
+  </div>
+</div>
+
+<div class="rec-controls">
+  <div class="prerender-status" id="prerenderStatus"></div>
+  <div class="rec-timer" id="recTimer"><span class="live-dot"></span><span id="recTime">00:00</span></div>
+  <button class="rec-btn" id="recBtn" title="開始錄影"><div class="dot"></div></button>
+  <select id="splitSelect" class="split-select" title="上下比例">
+    <option value="30">30:70</option>
+    <option value="40">40:60</option>
+    <option value="50" selected>50:50</option>
+    <option value="60">60:40</option>
+    <option value="70">70:30</option>
+  </select>
+</div>
+<div class="draw-tools" id="drawTools">
+  <button id="dtPen" title="畫筆">&#9998;</button>
+  <button id="dtEraser" title="橡皮擦">&#9003;</button>
+  <div class="sep"></div>
+  <input type="color" id="dtColor" value="#ff4757" title="畫筆顏色">
+  <div class="sep"></div>
+  <button id="dtImg" title="貼圖">&#128444;</button>
+  <button id="dtClear" title="清除全部">&#128465;</button>
+</div>
+<input type="file" id="wbImgFile" accept="image/*" style="display:none">
+
+<div class="rec-exit" id="recExit">ESC 退出錄影模式</div>
+
+<div class="storyboard-panel" id="storyboardPanel">
+  <div class="storyboard-panel-header">分鏡</div>
+  <div class="storyboard-panel-grid" id="sbPanelGrid"></div>
+</div>
+
+<div class="teleprompter" id="teleprompter">
+  <div class="teleprompter-header">提詞便利貼</div>
+  <textarea id="prompterText" placeholder="在這裡寫提詞稿...&#10;&#10;只有你看得到，不會錄進去"></textarea>
+  <div class="font-controls">
+    <button id="fontMinus" title="縮小字體">A-</button>
+    <button id="fontPlus" title="放大字體">A+</button>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <span style="font-size:13px;color:var(--text-muted)">底圖：</span>
+  <div class="source-group">
+    <label><input type="radio" name="bgSource" value="3d" checked> 3D場景</label>
+    <label><input type="radio" name="bgSource" value="solid"> 純色</label>
+    <label><input type="radio" name="bgSource" value="upload"> 上傳影片</label>
+    <label><input type="radio" name="bgSource" value="webcam"> Webcam</label>
+  </div>
+  <select id="sceneSelect" class="scene-select">
+    <option value="grassland">草原漫步</option>
+    <option value="cave">洞窟探險</option>
+    <option value="sky">天空之城</option>
+    <option value="ocean">海底世界</option>
+  </select>
+  <input type="color" id="bgColor" value="#000000" title="背景色">
+  <input type="file" id="videoFile" accept="video/*">
+  <label class="file-label" id="videoFileLabel" for="videoFile">選擇影片</label>
+  <span style="width:1px;height:20px;background:var(--border);margin:0 8px"></span>
+  <div class="storyboard-bar">
+    <span style="font-size:13px;color:var(--text-muted)">分鏡：</span>
+    <button id="sbAdd" class="sb-add-btn" title="上傳分鏡圖">+</button>
+    <button id="sbFromAssets" class="sb-add-btn" title="從素材庫" style="font-size:11px">素材庫</button>
+    <div class="sb-bar-thumbs" id="sbBarThumbs"></div>
+    <input type="file" id="sbFileInput" accept="image/*" multiple style="display:none">
+  </div>
+  <span style="width:1px;height:20px;background:var(--border);margin:0 8px"></span>
+  <div class="edit-draw-tools">
+    <button id="edPen">畫筆</button>
+    <button id="edImg">貼圖</button>
+    <button id="edClear">清除</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict'
+
+  // --- API helpers ---
+
+  async function apiGet(url) {
+    const r = await fetch(url)
+    return r.json()
+  }
+
+  async function apiPost(url, body) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return r.json()
+  }
+
+  async function apiPut(url, body) {
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return r.json()
+  }
+
+  async function apiDelete(url) {
+    const r = await fetch(url, { method: 'DELETE' })
+    return r.json()
+  }
+
+  // DOM refs
+  const editor = document.getElementById('editor')
+  const svgEl = document.getElementById('markmap')
+  const topicSelect = document.getElementById('topicSelect')
+  const topicName = document.getElementById('topicName')
+  const btnNew = document.getElementById('btnNew')
+  const btnDelete = document.getElementById('btnDelete')
+  const btnRecord = document.getElementById('btnRecord')
+  const bgLayer = document.getElementById('bgLayer')
+  const solidBg = document.getElementById('solidBg')
+  const bgVideo = document.getElementById('bgVideo')
+  const webcamVideo = document.getElementById('webcamVideo')
+  const bgColor = document.getElementById('bgColor')
+  const videoFile = document.getElementById('videoFile')
+  const sourceRadios = document.querySelectorAll('input[name="bgSource"]')
+  const bg3d = document.getElementById('bg3d')
+  const sceneSelect = document.getElementById('sceneSelect')
+  const splitSelect = document.getElementById('splitSelect')
+  const recBtn = document.getElementById('recBtn')
+  const recTimer = document.getElementById('recTimer')
+  const recTimeSpan = document.getElementById('recTime')
+  const prompterText = document.getElementById('prompterText')
+  const fontMinus = document.getElementById('fontMinus')
+  const fontPlus = document.getElementById('fontPlus')
+  const previewPane = document.getElementById('previewPane')
+  const slideContainer = document.getElementById('slideContainer')
+  const slideNav = document.getElementById('slideNav')
+  const renderModeRadios = document.querySelectorAll('input[name="renderMode"]')
+  const mmThemeSelect = document.getElementById('mmTheme')
+  const btnLayout = document.getElementById('btnLayout')
+  const wbLayer = document.getElementById('wbLayer')
+  const wbCanvas = document.getElementById('wbCanvas')
+  const wbCtx = wbCanvas.getContext('2d')
+  const wbImgFile = document.getElementById('wbImgFile')
+  const dtPen = document.getElementById('dtPen')
+  const dtEraser = document.getElementById('dtEraser')
+  const dtColor = document.getElementById('dtColor')
+  const dtImg = document.getElementById('dtImg')
+  const dtClear = document.getElementById('dtClear')
+  const edPen = document.getElementById('edPen')
+  const edImg = document.getElementById('edImg')
+  const edClear = document.getElementById('edClear')
+  const bg3dVideo = document.getElementById('bg3dVideo')
+  const prerenderStatus = document.getElementById('prerenderStatus')
+  const storyboardPanel = document.getElementById('storyboardPanel')
+  const sbPanelGrid = document.getElementById('sbPanelGrid')
+  const sbBarThumbs = document.getElementById('sbBarThumbs')
+  const sbAdd = document.getElementById('sbAdd')
+  const sbFromAssets = document.getElementById('sbFromAssets')
+  const sbFileInput = document.getElementById('sbFileInput')
+  const storyboardOverlay = document.getElementById('storyboardOverlayInner')
+
+  // State
+  let topics = []
+  let currentIndex = 0
+  let saveTimer = null
+  let mediaRecorder = null
+  let recordedChunks = []
+  let recStartTime = 0
+  let recTickInterval = null
+  let mm = null
+  let webcamStream = null
+  let preRenderedBlob = null
+  let preRenderRecorder = null
+  let activeStoryboard = -1 // index of currently shown storyboard, -1 = none
+
+  // --- Mindmap Theme ---
+
+  const MM_THEMES = {
+    navy: {
+      bg: '#0d1117',
+      text: '#ffffff',
+      palette: ['#ff6b9d', '#ffc93c', '#6dd5ed', '#a8e6cf', '#c3aed6', '#ff9a76', '#74b9ff', '#fd79a8', '#55efc4', '#81ecec']
+    },
+    dark: {
+      bg: '#000000',
+      text: '#ffffff',
+      palette: ['#ff6b9d', '#ffc93c', '#6dd5ed', '#a8e6cf', '#c3aed6', '#ff9a76', '#74b9ff', '#fd79a8', '#55efc4', '#81ecec']
+    },
+    light: {
+      bg: '#ffffff',
+      text: '#121212',
+      palette: ['#e91e63', '#f57c00', '#1976d2', '#388e3c', '#7b1fa2', '#c62828', '#00838f', '#4527a0', '#ef6c00', '#2e7d32']
+    },
+    cream: {
+      bg: '#fdf6e3',
+      text: '#2d2d2d',
+      palette: ['#d33682', '#cb4b16', '#268bd2', '#859900', '#6c71c4', '#b58900', '#2aa198', '#dc322f', '#657b83', '#586e75']
+    }
+  }
+
+  let currentMmTheme = 'navy'
+  mmThemeSelect.value = currentMmTheme
+
+  function applyMmTheme(rerender) {
+    const theme = MM_THEMES[currentMmTheme]
+    document.documentElement.style.setProperty('--mm-bg', theme.bg)
+    document.documentElement.style.setProperty('--mm-text', theme.text)
+    if (rerender && mm) {
+      mm = null
+      svgEl.innerHTML = ''
+      renderMarkmap()
+    }
+  }
+
+  mmThemeSelect.addEventListener('change', () => {
+    currentMmTheme = mmThemeSelect.value
+    apiPut('/api/settings/mm_theme', { value: currentMmTheme })
+    applyMmTheme(true)
+  })
+
+  // Set initial CSS variables (markmap renders later during init)
+  applyMmTheme(false)
+
+  // --- Topic Management ---
+
+  async function loadTopics() {
+    const data = await apiGet('/api/topics')
+    topics = data.topics || []
+    if (topics.length === 0) {
+      topics = [{ name: '空白', markdown: '# 空白' }]
+    }
+  }
+
+  function renderTopicSelect() {
+    topicSelect.innerHTML = topics
+      .map((t, i) => `<option value="${i}">${t.name}</option>`)
+      .join('')
+    topicSelect.value = currentIndex
+    topicName.value = topics[currentIndex].name
+  }
+
+  function switchTopic(index) {
+    currentIndex = index
+    editor.value = topics[currentIndex].markdown
+    topicName.value = topics[currentIndex].name
+    topicSelect.value = currentIndex
+    renderMarkmap()
+    renderStoryboards()
+  }
+
+  function autoSave() {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      const topic = topics[currentIndex]
+      if (!topic || !topic.id) return
+      const updates = {
+        markdown: editor.value,
+        name: topicName.value,
+      }
+      topics[currentIndex] = { ...topic, ...updates }
+      renderTopicSelect()
+      apiPut('/api/topics/' + topic.id, updates)
+    }, 1000)
+  }
+
+  // --- Markmap ---
+
+  function forceTextColor() {
+    const c = MM_THEMES[currentMmTheme].text
+    // SVG <text> (old markmap)
+    svgEl.querySelectorAll('text').forEach(t => {
+      t.setAttribute('fill', c)
+      t.style.setProperty('fill', c, 'important')
+    })
+    // foreignObject HTML (new markmap) — this is the actual one
+    svgEl.querySelectorAll('foreignObject div, foreignObject span, foreignObject p').forEach(el => {
+      el.style.setProperty('color', c, 'important')
+      el.style.setProperty('font-weight', '600', 'important')
+    })
+  }
+
+  // Persistent interval — Markmap d3 transitions continuously
+  // reset inline fill during animation, so we need to keep overriding
+  let textInterval = null
+  function startTextEnforcer() {
+    if (textInterval) return
+    textInterval = setInterval(forceTextColor, 100)
+  }
+
+  function renderMarkmap() {
+    const { Transformer } = window.markmap
+    const transformer = new Transformer()
+    const { root } = transformer.transform(editor.value || '# 空白')
+    const palette = MM_THEMES[currentMmTheme].palette
+    if (!mm) {
+      mm = window.markmap.Markmap.create(svgEl, {
+        color: (node) => palette[node.state.depth % palette.length],
+        duration: 300,
+        maxWidth: 200,
+        paddingX: 16,
+      }, root)
+    } else {
+      mm.setData(root)
+      mm.fit()
+    }
+    startTextEnforcer()
+  }
+
+  // --- Slide Renderer ---
+
+  let slides = []
+  let currentSlide = 0
+
+  function parseSlides(md) {
+    const lines = md.split('\n')
+    const result = []
+    let current = null
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('## ')) {
+        if (current) result.push(current)
+        current = { title: trimmed.slice(3), img: null, items: [] }
+      } else if (trimmed.startsWith('# ') && !current) {
+        // Title slide
+        current = { title: trimmed.slice(2), img: null, items: [], isTitle: true }
+      } else if (current) {
+        const imgMatch = trimmed.match(/^!\[.*?\]\((.+?)\)/)
+        if (imgMatch) {
+          current.img = imgMatch[1]
+        } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+          current.items.push(trimmed.slice(2))
+        }
+      }
+    }
+    if (current) result.push(current)
+    return result
+  }
+
+  function renderSlide(index) {
+    if (index < 0 || index >= slides.length) return
+    currentSlide = index
+    const s = slides[index]
+
+    let html = '<div class="slide-card">'
+    if (s.img) html += '<img class="slide-img" src="' + s.img + '" alt="">'
+    html += '<div class="slide-title">' + s.title + '</div>'
+    if (s.items.length) {
+      html += '<ul class="slide-items">'
+      for (const item of s.items) {
+        html += '<li>' + item + '</li>'
+      }
+      html += '</ul>'
+    }
+    html += '</div>'
+    slideContainer.innerHTML = html
+
+    // Update nav dots
+    slideNav.innerHTML = slides.map((_, i) =>
+      '<div class="dot' + (i === index ? ' active' : '') + '"></div>'
+    ).join('')
+  }
+
+  function getRenderMode() {
+    for (const r of renderModeRadios) {
+      if (r.checked) return r.value
+    }
+    return 'mindmap'
+  }
+
+  function updateRenderMode() {
+    const mode = getRenderMode()
+    if (mode === 'mindmap') {
+      svgEl.style.display = ''
+      slideContainer.classList.remove('visible')
+      slideNav.style.display = 'none'
+      renderMarkmap()
+    } else {
+      svgEl.style.display = 'none'
+      slideContainer.classList.add('visible')
+      slideNav.style.display = 'flex'
+      slides = parseSlides(editor.value || '')
+      currentSlide = 0
+      if (slides.length) renderSlide(0)
+    }
+  }
+
+  renderModeRadios.forEach(r => {
+    r.addEventListener('change', updateRenderMode)
+  })
+
+  // Slide navigation — click or arrow keys
+  slideContainer.addEventListener('click', () => {
+    if (currentSlide < slides.length - 1) {
+      renderSlide(currentSlide + 1)
+    }
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if (getRenderMode() !== 'slides') return
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault()
+      if (currentSlide < slides.length - 1) renderSlide(currentSlide + 1)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      if (currentSlide > 0) renderSlide(currentSlide - 1)
+    }
+  })
+
+  // --- Layout Mode ---
+
+  let isLayout = false
+
+  btnLayout.addEventListener('click', () => {
+    if (isLayout) {
+      exitLayoutMode()
+    } else {
+      enterLayoutMode()
+    }
+  })
+
+  function enterLayoutMode() {
+    isLayout = true
+    document.body.classList.add('layout')
+    btnLayout.textContent = '返回編輯'
+    btnLayout.classList.add('primary')
+    updateRenderMode()
+    setTimeout(() => {
+      if (mm && getRenderMode() === 'mindmap') mm.fit()
+      resizeWbCanvas()
+    }, 150)
+  }
+
+  function exitLayoutMode() {
+    isLayout = false
+    document.body.classList.remove('layout')
+    btnLayout.textContent = '排版'
+    btnLayout.classList.remove('primary')
+    setTimeout(() => {
+      if (mm) mm.fit()
+      resizeWbCanvas()
+    }, 150)
+  }
+
+  // --- Background ---
+
+  function getSelectedSource() {
+    for (const r of sourceRadios) {
+      if (r.checked) return r.value
+    }
+    return 'solid'
+  }
+
+  function updateBgVisibility() {
+    const source = getSelectedSource()
+    solidBg.style.display = source === 'solid' ? 'block' : 'none'
+    bgVideo.style.display = source === 'upload' ? 'block' : 'none'
+    webcamVideo.style.display = source === 'webcam' ? 'block' : 'none'
+    bg3d.style.display = source === '3d' ? 'block' : 'none'
+    bgColor.style.display = source === 'solid' ? 'inline-block' : 'none'
+    document.getElementById('videoFileLabel').style.display = source === 'upload' ? 'inline-block' : 'none'
+    sceneSelect.style.display = source === '3d' ? 'inline-block' : 'none'
+
+    if (source === 'webcam') {
+      startWebcam()
+    } else {
+      stopWebcam()
+    }
+
+    if (source === '3d') {
+      // Only start if canvas is actually visible (has dimensions)
+      if (bg3d.clientWidth > 0 && bg3d.clientHeight > 0) {
+        start3DScene()
+      }
+    } else {
+      stop3DScene()
+    }
+
+    solidBg.style.backgroundColor = bgColor.value
+  }
+
+  function startWebcam() {
+    if (webcamStream) return
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => {
+        webcamStream = stream
+        webcamVideo.srcObject = stream
+      })
+      .catch(err => {
+        console.error('Webcam access denied:', err)
+        alert('無法取得 Webcam 權限')
+      })
+  }
+
+  function stopWebcam() {
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(t => t.stop())
+      webcamStream = null
+      webcamVideo.srcObject = null
+    }
+  }
+
+  // --- Recording Mode ---
+
+  let isRecording = false
+
+  function enterRecordingMode() {
+    if (isLayout) exitLayoutMode()
+    isRecording = true
+    document.body.classList.add('recording')
+    bgLayer.style.display = 'flex'
+    updateBgVisibility()
+    updateRenderMode()
+
+    if (getSelectedSource() === 'upload' && bgVideo.src) {
+      bgVideo.play()
+    }
+
+    setTimeout(() => {
+      if (mm && getRenderMode() === 'mindmap') mm.fit()
+      resizeWbCanvas()
+      // 3D scene: now bgLayer is visible, start or resize
+      if (getSelectedSource() === '3d') {
+        if (!scene3d) {
+          init3DScene()
+          animate3D()
+        } else if (renderer3d) {
+          renderer3d.setSize(bg3d.clientWidth, bg3d.clientHeight)
+          camera3d.aspect = bg3d.clientWidth / bg3d.clientHeight
+          camera3d.updateProjectionMatrix()
+        }
+        // Start pre-rendering 3D to video blob
+        if (!preRenderedBlob && !preRenderRecorder) {
+          preRender3D()
+        }
+      }
+    }, 200)
+  }
+
+  function exitRecordingMode() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      stopCapture()
+    }
+    wbMode = 'none'
+    wbLayer.classList.remove('active')
+    isRecording = false
+    document.body.classList.remove('recording')
+    bgLayer.style.display = 'none'
+
+    if (bgVideo.src) bgVideo.pause()
+
+    setTimeout(() => {
+      if (mm) mm.fit()
+      resizeWbCanvas()
+    }, 150)
+  }
+
+  // --- Screen Capture ---
+
+  function formatTime(ms) {
+    const totalSec = Math.floor(ms / 1000)
+    const m = String(Math.floor(totalSec / 60)).padStart(2, '0')
+    const s = String(totalSec % 60).padStart(2, '0')
+    return m + ':' + s
+  }
+
+  let captureCanvas = null
+  let captureCtx = null
+  let captureVideo = null
+  let captureRaf = null
+  let micStream = null
+  let displayStream = null
+
+  async function startCapture() {
+    try {
+      // Switch to pre-rendered 3D video if available (frees GPU)
+      if (getSelectedSource() === '3d' && preRenderedBlob) {
+        activatePreRendered()
+      }
+
+      // 1. Get display stream (current tab)
+      displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser' },
+        audio: false,
+        preferCurrentTab: true
+      })
+
+      // 2. Get microphone
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (e) {
+        micStream = null
+      }
+
+      // 3. Set up canvas for 9:16 crop
+      captureCanvas = document.createElement('canvas')
+      captureCanvas.width = 1080
+      captureCanvas.height = 1920
+      captureCtx = captureCanvas.getContext('2d')
+
+      captureVideo = document.createElement('video')
+      captureVideo.srcObject = displayStream
+      captureVideo.muted = true
+      await captureVideo.play()
+
+      // Wait for video dimensions to be available
+      await new Promise(resolve => {
+        if (captureVideo.videoWidth > 0) return resolve()
+        captureVideo.onloadedmetadata = resolve
+      })
+
+      // 5. Draw loop — crop center 9:16 from tab capture
+      function drawFrame() {
+        const srcW = captureVideo.videoWidth
+        const srcH = captureVideo.videoHeight
+        if (srcW && srcH) {
+          const targetRatio = 9 / 16
+          const srcRatio = srcW / srcH
+          let cropX, cropY, cropW, cropH
+          if (srcRatio > targetRatio) {
+            // Source is wider — crop sides
+            cropH = srcH
+            cropW = srcH * targetRatio
+            cropX = (srcW - cropW) / 2
+            cropY = 0
+          } else {
+            // Source is taller — crop top/bottom
+            cropW = srcW
+            cropH = srcW / targetRatio
+            cropX = 0
+            cropY = (srcH - cropH) / 2
+          }
+          captureCtx.drawImage(captureVideo, cropX, cropY, cropW, cropH, 0, 0, 1080, 1920)
+        }
+        captureRaf = requestAnimationFrame(drawFrame)
+      }
+      drawFrame()
+
+      // 6. Combine canvas video + mic audio
+      const canvasStream = captureCanvas.captureStream(30)
+      const tracks = [...canvasStream.getVideoTracks()]
+      if (micStream) tracks.push(...micStream.getAudioTracks())
+      const combinedStream = new MediaStream(tracks)
+
+      // 7. Record
+      recordedChunks = []
+      mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : 'video/webm'
+      })
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data)
+      }
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' })
+        const topicLabel = (topics[currentIndex] || {}).name || 'recording'
+        const filename = topicLabel + '_' + new Date().toISOString().slice(0, 10) + '.webm'
+        showPostRecordModal(blob, filename)
+        cleanupCapture()
+      }
+
+      // If user stops sharing via browser UI
+      displayStream.getVideoTracks()[0].onended = () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') stopCapture()
+      }
+
+      mediaRecorder.start(200)
+      recStartTime = Date.now()
+      recBtn.classList.add('is-recording')
+      recBtn.title = '停止錄影'
+      recTimer.classList.add('visible')
+
+      recTickInterval = setInterval(() => {
+        recTimeSpan.textContent = formatTime(Date.now() - recStartTime)
+      }, 500)
+
+    } catch (err) {
+      console.error('Screen capture failed:', err)
+      cleanupCapture()
+    }
+  }
+
+  function stopCapture() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop()
+    }
+  }
+
+  function cleanupCapture() {
+    cancelAnimationFrame(captureRaf)
+    captureRaf = null
+    if (displayStream) { displayStream.getTracks().forEach(t => t.stop()); displayStream = null }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null }
+    if (captureVideo) { captureVideo.pause(); captureVideo.srcObject = null; captureVideo = null }
+    captureCanvas = null
+    captureCtx = null
+    recBtn.classList.remove('is-recording')
+    recBtn.title = '開始錄影'
+    recTimer.classList.remove('visible')
+    clearInterval(recTickInterval)
+    recTickInterval = null
+    recTimeSpan.textContent = '00:00'
+    // Restore live 3D after recording ends
+    if (getSelectedSource() === '3d' && bg3dVideo.style.display !== 'none') {
+      deactivatePreRendered()
+    }
+  }
+
+  // --- Split Ratio Dropdown ---
+
+  let splitTop = 50
+  splitSelect.value = splitTop
+  document.documentElement.style.setProperty('--split-top', splitTop + '%')
+  document.documentElement.style.setProperty('--split-bottom', (100 - splitTop) + '%')
+
+  function applySplit(val) {
+    splitTop = val
+    splitSelect.value = splitTop
+    document.documentElement.style.setProperty('--split-top', splitTop + '%')
+    document.documentElement.style.setProperty('--split-bottom', (100 - splitTop) + '%')
+  }
+
+  splitSelect.addEventListener('change', () => {
+    applySplit(parseInt(splitSelect.value, 10))
+    apiPut('/api/settings/split', { value: splitTop })
+    if (renderer3d && bg3d.clientWidth > 0 && bg3d.clientHeight > 0) {
+      setTimeout(() => {
+        renderer3d.setSize(bg3d.clientWidth, bg3d.clientHeight)
+        camera3d.aspect = bg3d.clientWidth / bg3d.clientHeight
+        camera3d.updateProjectionMatrix()
+      }, 50)
+    }
+  })
+
+  // --- 3D Minecraft Parkour Scene ---
+
+  let scene3d = null
+  let camera3d = null
+  let renderer3d = null
+  let raf3d = null
+  let terrainChunks = []
+  let handGroup = null
+  let cameraZ = 0
+  let cameraTime = 0
+  const CHUNK_SIZE = 16
+  const VIEW_DIST = 6
+  const BLOCK_SIZE = 1
+
+  // Value noise
+  const noiseCache = {}
+  function pseudoRandom(x, z) {
+    const key = x + ',' + z
+    if (noiseCache[key] !== undefined) return noiseCache[key]
+    const n = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453
+    const val = n - Math.floor(n)
+    noiseCache[key] = val
+    return val
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t }
+
+  function smoothNoise(x, z) {
+    const ix = Math.floor(x)
+    const iz = Math.floor(z)
+    const fx = x - ix
+    const fz = z - iz
+    const tx = fx * fx * (3 - 2 * fx)
+    const tz = fz * fz * (3 - 2 * fz)
+    return lerp(
+      lerp(pseudoRandom(ix, iz), pseudoRandom(ix + 1, iz), tx),
+      lerp(pseudoRandom(ix, iz + 1), pseudoRandom(ix + 1, iz + 1), tx),
+      tz
+    )
+  }
+
+  function fbmNoise(x, z, octaves) {
+    let val = 0, amp = 1, freq = 1, max = 0
+    for (let i = 0; i < octaves; i++) {
+      val += smoothNoise(x * freq, z * freq) * amp
+      max += amp
+      amp *= 0.5
+      freq *= 2
+    }
+    return val / max
+  }
+
+  // --- First Person Hand + Sword ---
+
+  function createHand() {
+    const group = new THREE.Group()
+
+    function handMat(color) {
+      return new THREE.MeshLambertMaterial({ color, depthTest: false })
+    }
+    function addPart(geo, color, pos, rot) {
+      const m = new THREE.Mesh(geo, handMat(color))
+      m.position.set(pos[0], pos[1], pos[2])
+      if (rot) m.rotation.set(rot[0], rot[1], rot[2])
+      m.renderOrder = 999
+      group.add(m)
+      return m
+    }
+
+    // --- Minecraft-style arm (4x12x4 pixel proportion, blocky) ---
+    addPart(
+      new THREE.BoxGeometry(0.22, 0.65, 0.22),
+      0xc68642, // Minecraft Steve skin tone
+      [0, -0.25, -0.1],
+      [-0.4, 0, 0.2]
+    )
+
+    // --- Diamond Sword (flat pixel-art style, like a sprite) ---
+    // The sword is flat (thin Z), wide X, tall Y — like the inventory icon
+    const swordGroup = new THREE.Group()
+    swordGroup.position.set(0.02, 0.3, -0.25)
+    swordGroup.rotation.set(-0.7, 0.1, 0.6) // Diagonal hold angle
+
+    // Handle (dark brown, 2px wide)
+    addPart(new THREE.BoxGeometry(0.06, 0.22, 0.03), 0x4a3728, [0, -0.08, 0]).parent = null
+    const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.03), handMat(0x4a3728))
+    hilt.position.set(0, -0.08, 0)
+    hilt.renderOrder = 999
+    swordGroup.add(hilt)
+
+    // Handle wrap (slightly lighter)
+    const wrap = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.035), handMat(0x2e7d32))
+    wrap.position.set(0, -0.04, 0)
+    wrap.renderOrder = 999
+    swordGroup.add(wrap)
+
+    // Guard / crossguard (wider, gold-ish)
+    const crossguard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.04), handMat(0x5d4e37))
+    crossguard.position.set(0, 0.06, 0)
+    crossguard.renderOrder = 999
+    swordGroup.add(crossguard)
+
+    // Blade (flat, diamond color — the iconic MC look)
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.5, 0.025), handMat(0x33c9dc))
+    blade.position.set(0, 0.36, 0)
+    blade.renderOrder = 999
+    swordGroup.add(blade)
+
+    // Blade edge highlight (slightly lighter strip)
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.5, 0.026), handMat(0x7fecf5))
+    edge.position.set(0.035, 0.36, 0)
+    edge.renderOrder = 999
+    swordGroup.add(edge)
+
+    // Blade tip (pointed — narrower top)
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.025), handMat(0x5ee8f5))
+    tip.position.set(0, 0.63, 0)
+    tip.renderOrder = 999
+    swordGroup.add(tip)
+
+    group.add(swordGroup)
+    return group
+  }
+
+  // Scene configs — parkour maps (camera high, platforms below)
+  const SCENES = {
+    grassland: {
+      sky: 0x6db3f0,
+      fog: 0x9ed4ff,
+      fogNear: 50, fogFar: 100,
+      camY: 8, lookDown: 0.35, speed: 0.10,
+      headBob: 0.06, headBobFreq: 6,
+      terrain(x, z) {
+        // Colorful parkour platforms — wide, with gaps
+        const section = Math.floor(z / 6)
+        const inSection = z % 6
+
+        // Each section: 3-4 blocks platform, 2-3 blocks gap
+        const platLen = 3 + Math.floor(pseudoRandom(section, 0) * 2)
+        if (inSection >= platLen) return -99 // gap
+
+        // Platform width varies, slightly offset left/right
+        const offset = Math.floor(pseudoRandom(section, 10) * 5) - 2
+        const width = 2 + Math.floor(pseudoRandom(section, 2) * 3)
+        if (x < offset - width || x > offset + width) return -99
+
+        // Height: gentle variation (all below camera)
+        return Math.floor(pseudoRandom(section, 1) * 4) - 1
+      },
+      colors(x, z, y, maxY) {
+        const section = Math.floor(z / 6)
+        const palette = [0x4caf50, 0x2196f3, 0xff9800, 0xe91e63, 0x9c27b0,
+                         0x00bcd4, 0xffeb3b, 0x8bc34a, 0xff5722, 0x3f51b5]
+        const base = palette[Math.abs(section) % palette.length]
+        if (y === maxY) return base
+        const c = new THREE.Color(base)
+        c.multiplyScalar(0.55)
+        return c.getHex()
+      }
+    },
+    cave: {
+      sky: 0x0a0505,
+      fog: 0x080202,
+      fogNear: 25, fogFar: 60,
+      camY: 7, lookDown: 0.32, speed: 0.09,
+      headBob: 0.04, headBobFreq: 5,
+      terrain(x, z) {
+        // Nether parkour — narrow bridges over void, lava floor
+        const section = Math.floor(z / 5)
+        const inSection = z % 5
+
+        // Lava floor always present (y = -4)
+        const pathX = Math.abs(x)
+
+        // Bridges: 2-3 blocks wide, 3-4 blocks long
+        const platLen = 3 + Math.floor(pseudoRandom(section, 4) * 2)
+        if (inSection >= platLen) {
+          // Gap — but lava floor still exists
+          return pathX <= 8 ? -4 : -99
+        }
+
+        const offset = Math.floor(pseudoRandom(section, 10) * 4) - 2
+        const bwidth = 1 + Math.floor(pseudoRandom(section, 5) * 2)
+
+        if (x >= offset - bwidth && x <= offset + bwidth) {
+          // Bridge platform
+          return Math.floor(pseudoRandom(section, 3) * 3)
+        }
+        // Lava floor
+        return pathX <= 8 ? -4 : -99
+      },
+      colors(x, z, y, maxY) {
+        // Lava floor
+        if (y <= -3) {
+          const flicker = pseudoRandom(x * 13 + Math.floor(cameraTime * 2), z * 7)
+          return flicker > 0.5 ? 0xff6d00 : [0xff3d00, 0xdd2c00, 0xff8f00][Math.abs((x + z) % 3)]
+        }
+        if (y === maxY) {
+          // Nether blocks
+          if (pseudoRandom(x * 7, z * 3) > 0.85) return 0xffab00 // Gold ore
+          return [0x4e342e, 0x5d4037, 0x6d4c41, 0x3e2723][Math.abs((x * 3 + z) % 4)]
+        }
+        return [0x3e2723, 0x321911, 0x2a1508][Math.abs((x + z) % 3)]
+      }
+    },
+    sky: {
+      sky: 0xb3e5fc,
+      fog: 0xe1f5fe,
+      fogNear: 55, fogFar: 110,
+      camY: 10, lookDown: 0.38, speed: 0.09,
+      headBob: 0.08, headBobFreq: 4,
+      terrain(x, z) {
+        // Floating islands with big gaps — dreamy
+        const section = Math.floor(z / 8)
+        const inSection = z % 8
+
+        // Islands: 4-5 blocks, big gap 3-4
+        const islandLen = 4 + Math.floor(pseudoRandom(section, 8) * 2)
+        if (inSection >= islandLen) return -99
+
+        // Round-ish shape
+        const cx = Math.floor(pseudoRandom(section, 11) * 4) - 2
+        const radius = 2 + Math.floor(pseudoRandom(section, 12) * 3)
+        const dist = Math.abs(x - cx)
+        if (dist > radius) return -99
+
+        // Dome shape: higher in center, lower at edges
+        const h = Math.floor((1 - dist / radius) * 3) + Math.floor(pseudoRandom(section, 9) * 3) - 1
+        return h
+      },
+      colors(x, z, y, maxY) {
+        const section = Math.floor(z / 8)
+        if (y === maxY) {
+          // Pastel tops
+          const pastels = [0xffffff, 0xf8bbd0, 0xc5cae9, 0xb2dfdb, 0xdcedc8, 0xfff9c4, 0xf0f4c3]
+          return pastels[Math.abs(section * 3 + x) % pastels.length]
+        }
+        if (y >= maxY - 1) return [0x90caf9, 0x81d4fa, 0x80cbc4][Math.abs((x + z) % 3)]
+        return [0xb0bec5, 0x90a4ae, 0xcfd8dc][Math.abs((x + z) % 3)]
+      }
+    },
+    ocean: {
+      sky: 0x01579b,
+      fog: 0x0277bd,
+      fogNear: 30, fogFar: 70,
+      camY: 8, lookDown: 0.3, speed: 0.08,
+      headBob: 0.12, headBobFreq: 2.5,
+      terrain(x, z) {
+        // Underwater — coral towers rising from sea floor
+        const pathX = Math.abs(x)
+        if (pathX > 8) return -99
+
+        // Sea floor always at -3
+        const section = Math.floor(z / 4)
+        const inSection = z % 4
+
+        // Coral pillars: random columns rising up
+        const hasCoral = pseudoRandom(Math.floor(x / 2) + section * 100, section) > 0.55
+        if (hasCoral && inSection < 2 + Math.floor(pseudoRandom(section, 6) * 2)) {
+          const coralH = Math.floor(pseudoRandom(x + section * 50, section * 3) * 5)
+          if (Math.abs(x) % 3 < 2) return coralH
+        }
+
+        // Sand floor
+        return -3
+      },
+      colors(x, z, y, maxY) {
+        // Sand floor
+        if (y <= -2) return [0xffcc80, 0xffe0b2, 0xffb74d][Math.abs((x + z) % 3)]
+        if (y === maxY) {
+          // Vibrant coral tops
+          const corals = [0xff8a80, 0xf4ff81, 0x84ffff, 0xb388ff, 0xffab40, 0xa7ffeb, 0xea80fc, 0xff80ab]
+          return corals[Math.abs((x * 3 + z * 7) % corals.length)]
+        }
+        if (y >= maxY - 1) return [0x00897b, 0x00796b, 0x00695c][Math.abs((x + z) % 3)]
+        return [0x006064, 0x004d40, 0x00363a][Math.abs((x + z) % 3)]
+      }
+    }
+  }
+
+  function getSceneId() {
+    return sceneSelect.value || 'grassland'
+  }
+
+  function init3DScene() {
+    const cfg = SCENES[getSceneId()]
+
+    scene3d = new THREE.Scene()
+    scene3d.background = new THREE.Color(cfg.sky)
+    scene3d.fog = new THREE.Fog(cfg.fog, cfg.fogNear, cfg.fogFar)
+
+    camera3d = new THREE.PerspectiveCamera(75, bg3d.clientWidth / bg3d.clientHeight, 0.1, 150)
+    camera3d.position.set(0, cfg.camY, 0)
+
+    renderer3d = new THREE.WebGLRenderer({ canvas: bg3d, antialias: false })
+    renderer3d.setSize(bg3d.clientWidth, bg3d.clientHeight)
+    renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+
+    // Lighting
+    const ambient = new THREE.AmbientLight(0xffffff, getSceneId() === 'cave' ? 0.25 : 0.55)
+    scene3d.add(ambient)
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9)
+    sun.position.set(3, 10, -5)
+    scene3d.add(sun)
+
+    if (getSceneId() === 'cave') {
+      const lava = new THREE.PointLight(0xff4400, 2.0, 20)
+      lava.position.set(0, 0, -8)
+      scene3d.add(lava)
+    }
+    if (getSceneId() === 'ocean') {
+      const caustic = new THREE.PointLight(0x00e5ff, 1.2, 30)
+      caustic.position.set(0, 5, -12)
+      scene3d.add(caustic)
+    }
+
+    // First person hand with sword
+    handGroup = createHand()
+    handGroup.position.set(0.55, -0.45, -0.6)
+    camera3d.add(handGroup)
+    scene3d.add(camera3d)
+
+    cameraZ = 0
+    cameraTime = 0
+    terrainChunks = []
+    generateTerrain()
+  }
+
+  function generateTerrain() {
+    const cfg = SCENES[getSceneId()]
+    const camChunk = Math.floor(-cameraZ / CHUNK_SIZE)
+
+    terrainChunks = terrainChunks.filter(c => {
+      if (Math.abs(c.chunkZ - camChunk) > VIEW_DIST + 1) {
+        scene3d.remove(c.mesh)
+        c.mesh.geometry.dispose()
+        c.mesh.material.dispose()
+        return false
+      }
+      return true
+    })
+
+    for (let cz = camChunk - 1; cz <= camChunk + VIEW_DIST; cz++) {
+      if (terrainChunks.some(c => c.chunkZ === cz)) continue
+      const chunk = createChunk(cz, cfg)
+      terrainChunks.push(chunk)
+      scene3d.add(chunk.mesh)
+    }
+  }
+
+  function createChunk(chunkZ, cfg) {
+    const geometry = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+    const matrices = []
+    const colors = []
+    const tempMatrix = new THREE.Matrix4()
+
+    for (let x = -9; x <= 9; x++) {
+      for (let z = 0; z < CHUNK_SIZE; z++) {
+        const worldZ = chunkZ * CHUNK_SIZE + z
+        const height = cfg.terrain(x, worldZ)
+        if (height <= -90) continue
+
+        const maxY = height
+        const depth = getSceneId() === 'cave' ? 5 : 3
+
+        for (let y = maxY - depth; y <= maxY; y++) {
+          tempMatrix.makeTranslation(x * BLOCK_SIZE, y * BLOCK_SIZE, -worldZ * BLOCK_SIZE)
+          matrices.push(tempMatrix.clone())
+          const col = cfg.colors(x, worldZ, y, maxY)
+          colors.push(new THREE.Color(typeof col === 'number' ? col : col))
+        }
+      }
+    }
+
+    if (matrices.length === 0) {
+      const material = new THREE.MeshLambertMaterial()
+      const mesh = new THREE.InstancedMesh(geometry, material, 1)
+      tempMatrix.makeTranslation(0, -100, 0)
+      mesh.setMatrixAt(0, tempMatrix)
+      mesh.instanceMatrix.needsUpdate = true
+      return { chunkZ, mesh }
+    }
+
+    const material = new THREE.MeshLambertMaterial()
+    const mesh = new THREE.InstancedMesh(geometry, material, matrices.length)
+
+    for (let i = 0; i < matrices.length; i++) {
+      mesh.setMatrixAt(i, matrices[i])
+      mesh.setColorAt(i, colors[i])
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+
+    return { chunkZ, mesh }
+  }
+
+  function animate3D() {
+    if (!renderer3d) return
+    raf3d = requestAnimationFrame(animate3D)
+
+    const cfg = SCENES[getSceneId()]
+    cameraTime += 0.016
+
+    // Forward movement — like sprinting in parkour
+    cameraZ -= cfg.speed
+
+    // Head bob (sprint rhythm)
+    const bobPhase = cameraTime * cfg.headBobFreq
+    const bobY = Math.abs(Math.sin(bobPhase)) * cfg.headBob
+    const bobX = Math.sin(bobPhase * 0.5) * 0.04
+
+    // Camera tilt on landing
+    const tiltZ = Math.sin(bobPhase) * 0.015
+
+    camera3d.position.set(bobX, cfg.camY + bobY, cameraZ)
+    camera3d.rotation.set(0, 0, 0)
+    // Look down at the platforms + slight forward tilt
+    camera3d.rotateX(-cfg.lookDown + Math.sin(cameraTime * 0.4) * 0.015)
+    camera3d.rotateZ(tiltZ)
+
+    // Hand sway (follows head bob with delay)
+    if (handGroup) {
+      handGroup.rotation.x = -0.1 + Math.sin(bobPhase + 0.5) * 0.06
+      handGroup.rotation.z = 0.05 + Math.sin(bobPhase * 0.5) * 0.03
+      handGroup.position.y = -0.45 + Math.sin(bobPhase) * 0.03
+    }
+
+    // Generate terrain
+    const camChunk = Math.floor(-cameraZ / CHUNK_SIZE)
+    const furthest = terrainChunks.reduce((max, c) => Math.max(max, c.chunkZ), 0)
+    if (furthest < camChunk + VIEW_DIST) {
+      generateTerrain()
+    }
+
+    renderer3d.render(scene3d, camera3d)
+  }
+
+  function start3DScene() {
+    if (bg3d.clientWidth === 0 || bg3d.clientHeight === 0) return
+    if (raf3d) {
+      renderer3d.setSize(bg3d.clientWidth, bg3d.clientHeight)
+      camera3d.aspect = bg3d.clientWidth / bg3d.clientHeight
+      camera3d.updateProjectionMatrix()
+      return
+    }
+    if (!scene3d) {
+      init3DScene()
+    }
+    animate3D()
+  }
+
+  function stop3DScene() {
+    if (raf3d) {
+      cancelAnimationFrame(raf3d)
+      raf3d = null
+    }
+  }
+
+  function preRender3D() {
+    if (preRenderedBlob || preRenderRecorder) return
+    if (!renderer3d || !bg3d || bg3d.clientWidth === 0) return
+
+    prerenderStatus.textContent = '3D 預錄中…'
+    prerenderStatus.classList.add('visible')
+
+    const stream = bg3d.captureStream(30)
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9' : 'video/webm'
+    const recorder = new MediaRecorder(stream, { mimeType })
+    const chunks = []
+    preRenderRecorder = recorder
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data)
+    }
+
+    recorder.onstop = () => {
+      preRenderRecorder = null
+      if (chunks.length > 0) {
+        preRenderedBlob = new Blob(chunks, { type: 'video/webm' })
+        prerenderStatus.textContent = '3D 預錄就緒'
+        setTimeout(() => { prerenderStatus.classList.remove('visible') }, 2000)
+      } else {
+        prerenderStatus.classList.remove('visible')
+      }
+    }
+
+    recorder.start(200)
+    setTimeout(() => {
+      if (recorder.state === 'recording') {
+        recorder.stop()
+      }
+    }, 30000)
+  }
+
+  function activatePreRendered() {
+    if (!preRenderedBlob) return false
+    const url = URL.createObjectURL(preRenderedBlob)
+    bg3dVideo.src = url
+    bg3dVideo.style.display = 'block'
+    bg3d.style.display = 'none'
+    bg3dVideo.play()
+    stop3DScene()
+    return true
+  }
+
+  function deactivatePreRendered() {
+    bg3dVideo.pause()
+    bg3dVideo.style.display = 'none'
+    bg3dVideo.removeAttribute('src')
+    bg3dVideo.load()
+    if (getSelectedSource() === '3d') {
+      bg3d.style.display = 'block'
+      start3DScene()
+    }
+  }
+
+  function reset3DScene() {
+    stop3DScene()
+    preRenderedBlob = null
+    if (preRenderRecorder && preRenderRecorder.state === 'recording') {
+      preRenderRecorder.stop()
+    }
+    preRenderRecorder = null
+    deactivatePreRendered()
+    if (scene3d) {
+      terrainChunks.forEach(c => {
+        scene3d.remove(c.mesh)
+        c.mesh.geometry.dispose()
+        c.mesh.material.dispose()
+      })
+      terrainChunks = []
+      if (handGroup) { camera3d.remove(handGroup); handGroup = null }
+      renderer3d.dispose()
+      scene3d = null
+      camera3d = null
+      renderer3d = null
+    }
+    Object.keys(noiseCache).forEach(k => delete noiseCache[k])
+    if (getSelectedSource() === '3d' && bg3d.clientWidth > 0) {
+      init3DScene()
+      animate3D()
+    }
+  }
+
+  sceneSelect.addEventListener('change', reset3DScene)
+
+  // Handle resize for 3D
+  window.addEventListener('resize', () => {
+    if (renderer3d && bg3d.clientWidth > 0 && bg3d.clientHeight > 0) {
+      renderer3d.setSize(bg3d.clientWidth, bg3d.clientHeight)
+      camera3d.aspect = bg3d.clientWidth / bg3d.clientHeight
+      camera3d.updateProjectionMatrix()
+    }
+  })
+
+  // --- Storyboard ---
+
+  function getStoryboards() {
+    return (topics[currentIndex] || {}).storyboards || []
+  }
+
+  async function addStoryboardFile(files) {
+    const topic = topics[currentIndex]
+    if (!topic || !topic.id) return
+    const formData = new FormData()
+    for (const file of files) {
+      formData.append('file', file, file.name)
+    }
+    const r = await fetch('/api/topics/' + topic.id + '/storyboards', {
+      method: 'POST',
+      body: formData,
+    })
+    const data = await r.json()
+    if (data.storyboards) {
+      topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+    }
+    renderStoryboards()
+  }
+
+  async function addStoryboardUrl(url, name) {
+    const topic = topics[currentIndex]
+    if (!topic || !topic.id) return
+    const data = await apiPost('/api/topics/' + topic.id + '/storyboards', { url, name })
+    if (data.storyboards) {
+      topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+    }
+    renderStoryboards()
+  }
+
+  async function removeStoryboard(index) {
+    const topic = topics[currentIndex]
+    if (!topic || !topic.id) return
+    const sb = getStoryboards()
+    const item = sb[index]
+    if (!item) return
+    if (activeStoryboard === index) hideStoryboard()
+    const data = await apiDelete('/api/topics/' + topic.id + '/storyboards/' + item.id)
+    if (data.storyboards) {
+      topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+    } else {
+      // Fallback: remove locally
+      topics[currentIndex] = { ...topic, storyboards: sb.filter((_, i) => i !== index) }
+    }
+    renderStoryboards()
+  }
+
+  function renderStoryboards() {
+    const sb = getStoryboards()
+
+    // Recording mode panel
+    sbPanelGrid.innerHTML = sb.map((item, i) =>
+      '<div class="sb-thumb" data-index="' + i + '">' +
+        '<img src="' + (item.url || item.dataUrl || '') + '" alt="">' +
+        '<span class="sb-index">' + (i + 1) + '</span>' +
+        '<span class="sb-del" data-del="' + i + '">&times;</span>' +
+      '</div>'
+    ).join('')
+
+    // Edit mode bar thumbnails
+    sbBarThumbs.innerHTML = sb.map((item, i) =>
+      '<div class="sb-mini" data-index="' + i + '" draggable="true">' +
+        '<img src="' + (item.url || item.dataUrl || '') + '" alt="">' +
+        '<span class="sb-mini-del" data-del="' + i + '">&times;</span>' +
+      '</div>'
+    ).join('')
+
+    // Click to toggle overlay (recording panel) — same thumb again = hide
+    sbPanelGrid.querySelectorAll('.sb-thumb').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.classList.contains('sb-del')) return
+        const idx = parseInt(el.dataset.index, 10)
+        if (activeStoryboard === idx) {
+          hideStoryboard()
+        } else {
+          showStoryboard(idx)
+        }
+      })
+    })
+
+    // Delete buttons (recording panel)
+    sbPanelGrid.querySelectorAll('.sb-del').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation()
+        removeStoryboard(parseInt(el.dataset.del, 10))
+      })
+    })
+
+    // Delete buttons (edit bar)
+    sbBarThumbs.querySelectorAll('.sb-mini-del').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation()
+        removeStoryboard(parseInt(el.dataset.del, 10))
+      })
+    })
+
+    // Drag-sort (edit bar)
+    initDragSort()
+  }
+
+  let sbOverlayDragging = false
+  let sbOverlayMoved = false
+  let sbOverlayStart = { x: 0, y: 0 }
+
+  function showStoryboard(index) {
+    const sb = getStoryboards()
+    if (index < 0 || index >= sb.length) return
+    activeStoryboard = index
+    const img = document.createElement('img')
+    img.src = sb[index].url || sb[index].dataUrl || ''
+    img.style.position = 'absolute'
+    img.style.left = '50%'
+    img.style.top = '50%'
+    img.style.transform = 'translate(-50%, -50%)'
+    img.style.cursor = 'grab'
+    img.draggable = false
+    storyboardOverlay.innerHTML = ''
+    storyboardOverlay.appendChild(img)
+    storyboardOverlay.classList.add('visible')
+  }
+
+  function hideStoryboard() {
+    activeStoryboard = -1
+    storyboardOverlay.classList.remove('visible')
+    storyboardOverlay.innerHTML = ''
+  }
+
+  // Overlay: drag to move, click (no drag) to dismiss
+  storyboardOverlay.addEventListener('mousedown', (e) => {
+    const img = storyboardOverlay.querySelector('img')
+    if (!img || e.target !== img) {
+      hideStoryboard()
+      return
+    }
+    sbOverlayDragging = true
+    sbOverlayMoved = false
+    sbOverlayStart = { x: e.clientX, y: e.clientY }
+    img.style.cursor = 'grabbing'
+    e.preventDefault()
+  })
+
+  window.addEventListener('mousemove', (e) => {
+    if (!sbOverlayDragging) return
+    const dx = e.clientX - sbOverlayStart.x
+    const dy = e.clientY - sbOverlayStart.y
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) sbOverlayMoved = true
+    const img = storyboardOverlay.querySelector('img')
+    if (!img) return
+    const rect = previewPane.getBoundingClientRect()
+    const px = (e.clientX - rect.left) / rect.width * 100
+    const py = (e.clientY - rect.top) / rect.height * 100
+    img.style.left = px + '%'
+    img.style.top = py + '%'
+  })
+
+  window.addEventListener('mouseup', () => {
+    if (!sbOverlayDragging) return
+    sbOverlayDragging = false
+    const img = storyboardOverlay.querySelector('img')
+    if (img) img.style.cursor = 'grab'
+    if (!sbOverlayMoved) hideStoryboard()
+  })
+
+  // Upload storyboard from file (supports multiple)
+  sbAdd.addEventListener('click', () => sbFileInput.click())
+  sbFileInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    addStoryboardFile(files)
+    sbFileInput.value = ''
+  })
+
+  // Asset library picker
+  sbFromAssets.addEventListener('click', openAssetPicker)
+
+  function openAssetPicker() {
+    const modal = document.createElement('div')
+    modal.className = 'asset-picker-modal'
+    modal.innerHTML = '<div class="asset-picker-body">' +
+      '<div class="asset-picker-header">' +
+        '<span>從素材庫選擇</span>' +
+        '<button class="ap-close">&times;</button>' +
+      '</div>' +
+      '<div class="asset-picker-grid" id="apGrid">' +
+        '<div class="asset-picker-empty">載入中…</div>' +
+      '</div></div>'
+
+    document.body.appendChild(modal)
+    modal.querySelector('.ap-close').addEventListener('click', () => modal.remove())
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove()
+    })
+
+    fetch('/api/assets')
+      .then(r => r.json())
+      .then(data => {
+        const grid = modal.querySelector('#apGrid')
+        const assets = data.assets || []
+        if (assets.length === 0) {
+          grid.innerHTML = '<div class="asset-picker-empty">尚無素材，請先到素材管理頁上傳</div>'
+          return
+        }
+        grid.innerHTML = assets
+          .filter(a => a.type && a.type.startsWith('image/'))
+          .map(a => '<div class="asset-picker-item" data-url="/data/assets/' + a.filename + '">' +
+            '<img src="/data/assets/' + a.filename + '" alt="' + a.originalName + '">' +
+          '</div>').join('')
+        if (grid.innerHTML === '') {
+          grid.innerHTML = '<div class="asset-picker-empty">沒有圖片素材</div>'
+        }
+        grid.querySelectorAll('.asset-picker-item').forEach(item => {
+          item.addEventListener('click', () => {
+            addStoryboardUrl(item.dataset.url, '')
+            modal.remove()
+          })
+        })
+      })
+      .catch(() => {
+        const grid = modal.querySelector('#apGrid')
+        if (grid) grid.innerHTML = '<div class="asset-picker-empty">無法載入素材庫（伺服器未啟動 API？）</div>'
+      })
+  }
+
+  // Drag-sort for edit bar thumbnails
+  let sbDragIndex = -1
+
+  function initDragSort() {
+    const minis = sbBarThumbs.querySelectorAll('.sb-mini')
+    minis.forEach((el, i) => {
+      el.addEventListener('dragstart', (e) => {
+        sbDragIndex = i
+        e.dataTransfer.effectAllowed = 'move'
+        el.style.opacity = '0.4'
+      })
+      el.addEventListener('dragend', () => {
+        el.style.opacity = '1'
+        sbDragIndex = -1
+      })
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+      })
+      el.addEventListener('drop', (e) => {
+        e.preventDefault()
+        if (sbDragIndex < 0 || sbDragIndex === i) return
+        const sb = [...getStoryboards()]
+        const moved = sb.splice(sbDragIndex, 1)[0]
+        sb.splice(i, 0, moved)
+        const topic = topics[currentIndex]
+        if (topic && topic.id) {
+          topics[currentIndex] = { ...topic, storyboards: sb }
+          const ids = sb.map(s => s.id)
+          apiPut('/api/topics/' + topic.id + '/storyboards/reorder', { ids })
+        }
+        renderStoryboards()
+      })
+    })
+  }
+
+  // --- Events ---
+
+  editor.addEventListener('input', () => {
+    if (getRenderMode() === 'mindmap') {
+      renderMarkmap()
+    } else {
+      slides = parseSlides(editor.value || '')
+      currentSlide = Math.min(currentSlide, slides.length - 1)
+      if (slides.length) renderSlide(currentSlide)
+    }
+    autoSave()
+  })
+
+  topicName.addEventListener('input', autoSave)
+
+  topicSelect.addEventListener('change', () => {
+    switchTopic(parseInt(topicSelect.value, 10))
+  })
+
+  btnNew.addEventListener('click', async () => {
+    const name = prompt('新主題名稱：')
+    if (!name) return
+    const data = await apiPost('/api/topics', { name, markdown: '# ' + name })
+    if (data.topic) {
+      topics.push(data.topic)
+      currentIndex = topics.length - 1
+      renderTopicSelect()
+      switchTopic(currentIndex)
+    }
+  })
+
+  btnDelete.addEventListener('click', async () => {
+    if (topics.length <= 1) {
+      alert('至少保留一個主題')
+      return
+    }
+    if (!confirm(`確定刪除「${topics[currentIndex].name}」？`)) return
+    const topic = topics[currentIndex]
+    if (topic && topic.id) {
+      await apiDelete('/api/topics/' + topic.id)
+    }
+    topics.splice(currentIndex, 1)
+    currentIndex = Math.min(currentIndex, topics.length - 1)
+    renderTopicSelect()
+    switchTopic(currentIndex)
+  })
+
+  btnRecord.addEventListener('click', enterRecordingMode)
+
+  recBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      stopCapture()
+    } else {
+      startCapture()
+    }
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isRecording) {
+      if (activeStoryboard >= 0) {
+        hideStoryboard()
+        return
+      }
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopCapture()
+      } else {
+        exitRecordingMode()
+      }
+    }
+    // Storyboard hotkeys: 1-9 to show, 0 to hide
+    if (isRecording && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+      const num = parseInt(e.key, 10)
+      if (num >= 1 && num <= 9) {
+        const sb = getStoryboards()
+        if (num <= sb.length) showStoryboard(num - 1)
+      } else if (e.key === '0') {
+        hideStoryboard()
+      }
+    }
+  })
+
+  sourceRadios.forEach(r => {
+    r.addEventListener('change', updateBgVisibility)
+  })
+
+  bgColor.addEventListener('input', () => {
+    solidBg.style.backgroundColor = bgColor.value
+  })
+
+  videoFile.addEventListener('change', (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    bgVideo.src = url
+    bgVideo.load()
+  })
+
+  // --- Whiteboard (Drawing + Images) ---
+
+  let wbMode = 'none' // 'none' | 'pen' | 'eraser'
+  let wbDrawing = false
+  let wbPenColor = '#ff4757'
+  let wbPenSize = 4
+  let wbImages = [] // { el, x, y }
+
+  function resizeWbCanvas() {
+    const rect = previewPane.getBoundingClientRect()
+    wbCanvas.width = rect.width * window.devicePixelRatio
+    wbCanvas.height = rect.height * window.devicePixelRatio
+    wbCanvas.style.width = rect.width + 'px'
+    wbCanvas.style.height = rect.height + 'px'
+    wbCtx.scale(window.devicePixelRatio, window.devicePixelRatio)
+    // Redraw saved strokes
+    redrawStrokes()
+  }
+
+  // Store strokes for redraw after resize
+  let wbStrokes = [] // [{ color, size, eraser, points: [{x,y}] }]
+  let currentStroke = null
+
+  function redrawStrokes() {
+    wbCtx.clearRect(0, 0, wbCanvas.width, wbCanvas.height)
+    const rect = previewPane.getBoundingClientRect()
+    for (const s of wbStrokes) {
+      if (s.points.length < 2) continue
+      wbCtx.beginPath()
+      wbCtx.strokeStyle = s.eraser ? '#000000' : s.color
+      wbCtx.lineWidth = s.eraser ? 20 : s.size
+      wbCtx.lineCap = 'round'
+      wbCtx.lineJoin = 'round'
+      wbCtx.globalCompositeOperation = s.eraser ? 'destination-out' : 'source-over'
+      wbCtx.moveTo(s.points[0].x * rect.width, s.points[0].y * rect.height)
+      for (let i = 1; i < s.points.length; i++) {
+        wbCtx.lineTo(s.points[i].x * rect.width, s.points[i].y * rect.height)
+      }
+      wbCtx.stroke()
+    }
+    wbCtx.globalCompositeOperation = 'source-over'
+  }
+
+  function setWbMode(mode) {
+    wbMode = wbMode === mode ? 'none' : mode
+    wbLayer.classList.toggle('active', wbMode !== 'none')
+    dtPen.classList.toggle('active', wbMode === 'pen')
+    dtEraser.classList.toggle('active', wbMode === 'eraser')
+    edPen.classList.toggle('active', wbMode === 'pen')
+  }
+
+  function getWbPos(e) {
+    const rect = previewPane.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    return { x, y, px: e.clientX - rect.left, py: e.clientY - rect.top }
+  }
+
+  wbLayer.addEventListener('mousedown', (e) => {
+    if (wbMode === 'none') return
+    wbDrawing = true
+    const pos = getWbPos(e)
+    currentStroke = {
+      color: wbPenColor,
+      size: wbPenSize,
+      eraser: wbMode === 'eraser',
+      points: [{ x: pos.x, y: pos.y }]
+    }
+    wbCtx.beginPath()
+    wbCtx.strokeStyle = wbMode === 'eraser' ? '#000' : wbPenColor
+    wbCtx.lineWidth = wbMode === 'eraser' ? 20 : wbPenSize
+    wbCtx.lineCap = 'round'
+    wbCtx.lineJoin = 'round'
+    wbCtx.globalCompositeOperation = wbMode === 'eraser' ? 'destination-out' : 'source-over'
+    wbCtx.moveTo(pos.px, pos.py)
+  })
+
+  wbLayer.addEventListener('mousemove', (e) => {
+    if (!wbDrawing) return
+    const pos = getWbPos(e)
+    currentStroke.points.push({ x: pos.x, y: pos.y })
+    wbCtx.lineTo(pos.px, pos.py)
+    wbCtx.stroke()
+    wbCtx.beginPath()
+    wbCtx.moveTo(pos.px, pos.py)
+  })
+
+  window.addEventListener('mouseup', () => {
+    if (!wbDrawing) return
+    wbDrawing = false
+    wbCtx.globalCompositeOperation = 'source-over'
+    if (currentStroke && currentStroke.points.length > 1) {
+      wbStrokes.push(currentStroke)
+    }
+    currentStroke = null
+  })
+
+  // Image drag logic
+  let dragImg = null
+  let dragOffset = { x: 0, y: 0 }
+
+  function addWbImage(src) {
+    const img = document.createElement('img')
+    img.className = 'wb-img'
+    img.src = src
+    img.style.left = '10%'
+    img.style.top = '10%'
+    previewPane.appendChild(img)
+
+    img.addEventListener('mousedown', (e) => {
+      if (wbMode !== 'none') return
+      e.preventDefault()
+      dragImg = img
+      dragImg.classList.add('dragging')
+      const rect = img.getBoundingClientRect()
+      dragOffset.x = e.clientX - rect.left
+      dragOffset.y = e.clientY - rect.top
+    })
+
+    img.addEventListener('dblclick', () => {
+      img.remove()
+      wbImages = wbImages.filter(i => i !== img)
+    })
+
+    wbImages.push(img)
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    if (!dragImg) return
+    const pRect = previewPane.getBoundingClientRect()
+    const x = e.clientX - pRect.left - dragOffset.x
+    const y = e.clientY - pRect.top - dragOffset.y
+    dragImg.style.left = (x / pRect.width * 100) + '%'
+    dragImg.style.top = (y / pRect.height * 100) + '%'
+  })
+
+  window.addEventListener('mouseup', () => {
+    if (dragImg) {
+      dragImg.classList.remove('dragging')
+      dragImg = null
+    }
+  })
+
+  function clearWhiteboard() {
+    wbStrokes = []
+    wbCtx.clearRect(0, 0, wbCanvas.width, wbCanvas.height)
+    wbImages.forEach(img => img.remove())
+    wbImages = []
+  }
+
+  // Toolbar events (recording mode)
+  dtPen.addEventListener('click', () => setWbMode('pen'))
+  dtEraser.addEventListener('click', () => setWbMode('eraser'))
+  dtColor.addEventListener('input', (e) => { wbPenColor = e.target.value })
+  dtImg.addEventListener('click', () => wbImgFile.click())
+  dtClear.addEventListener('click', () => {
+    if (confirm('清除所有畫筆和圖片？')) clearWhiteboard()
+  })
+
+  // Toolbar events (edit mode)
+  edPen.addEventListener('click', () => setWbMode('pen'))
+  edImg.addEventListener('click', () => wbImgFile.click())
+  edClear.addEventListener('click', () => {
+    if (confirm('清除所有畫筆和圖片？')) clearWhiteboard()
+  })
+
+  wbImgFile.addEventListener('change', (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    addWbImage(url)
+    wbImgFile.value = ''
+  })
+
+  // Also support paste image
+  document.addEventListener('paste', (e) => {
+    const items = e.clipboardData && e.clipboardData.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const blob = item.getAsFile()
+        addWbImage(URL.createObjectURL(blob))
+        break
+      }
+    }
+  })
+
+  // Resize canvas on window resize + mode switch
+  window.addEventListener('resize', resizeWbCanvas)
+
+  // --- Teleprompter ---
+
+  let prompterFontSize = 16
+  let prompterSaveTimer = null
+  prompterText.style.fontSize = prompterFontSize + 'px'
+
+  prompterText.addEventListener('input', () => {
+    clearTimeout(prompterSaveTimer)
+    prompterSaveTimer = setTimeout(() => {
+      apiPut('/api/settings/prompter_text', { value: prompterText.value })
+    }, 1000)
+  })
+
+  fontPlus.addEventListener('click', () => {
+    prompterFontSize = Math.min(prompterFontSize + 2, 32)
+    prompterText.style.fontSize = prompterFontSize + 'px'
+    apiPut('/api/settings/prompter_fontsize', { value: prompterFontSize })
+  })
+
+  fontMinus.addEventListener('click', () => {
+    prompterFontSize = Math.max(prompterFontSize - 2, 10)
+    prompterText.style.fontSize = prompterFontSize + 'px'
+    apiPut('/api/settings/prompter_fontsize', { value: prompterFontSize })
+  })
+
+  // --- Subtitle Editor ---
+
+  function fmtSubTime(sec) {
+    const m = String(Math.floor(sec / 60)).padStart(2, '0')
+    const s = String(Math.floor(sec % 60)).padStart(2, '0')
+    return m + ':' + s
+  }
+
+  function showPostRecordModal(blob, filename) {
+    const blobUrl = URL.createObjectURL(blob)
+
+    const modal = document.createElement('div')
+    modal.className = 'sub-modal'
+    modal.innerHTML =
+      '<div class="sub-modal-body">' +
+        '<div class="sub-modal-header">' +
+          '<h2>錄影完成</h2>' +
+          '<button class="sub-close">&times;</button>' +
+        '</div>' +
+        '<div class="sub-modal-content">' +
+          '<video class="sub-video-preview" controls></video>' +
+          '<div class="sub-initial-actions">' +
+            '<button class="sub-btn-download">下載原始影片</button>' +
+            '<button class="sub-btn-subtitle">加字幕</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+
+    const video = modal.querySelector('.sub-video-preview')
+    video.src = blobUrl
+
+    // Close button
+    modal.querySelector('.sub-close').addEventListener('click', function() {
+      URL.revokeObjectURL(blobUrl)
+      modal.remove()
+    })
+
+    // Click backdrop to close
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        URL.revokeObjectURL(blobUrl)
+        modal.remove()
+      }
+    })
+
+    // Download original
+    modal.querySelector('.sub-btn-download').addEventListener('click', function() {
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      a.click()
+    })
+
+    // Add subtitles flow
+    modal.querySelector('.sub-btn-subtitle').addEventListener('click', function() {
+      startSubtitleFlow(modal, blob, blobUrl, filename)
+    })
+
+    document.body.appendChild(modal)
+  }
+
+  async function startSubtitleFlow(modal, blob, blobUrl, filename) {
+    const content = modal.querySelector('.sub-modal-content')
+    content.innerHTML =
+      '<div class="sub-progress">' +
+        '<div class="sub-spinner"></div>' +
+        '<div>正在上傳影片...</div>' +
+      '</div>'
+
+    try {
+      // 1. Upload recording
+      const formData = new FormData()
+      formData.append('file', blob, filename)
+      const uploadRes = await fetch('/api/recordings', { method: 'POST', body: formData })
+      const uploadData = await uploadRes.json()
+
+      if (!uploadData.url) {
+        content.innerHTML = '<div class="sub-progress" style="color:#e55">上傳失敗，請重試</div>'
+        return
+      }
+
+      // 2. Start transcription
+      content.querySelector('.sub-progress div:last-child').textContent = '正在轉錄字幕...'
+      const transcribeRes = await apiPost('/api/transcribe', { url: uploadData.url })
+
+      if (!transcribeRes.id) {
+        content.innerHTML = '<div class="sub-progress" style="color:#e55">轉錄請求失敗</div>'
+        return
+      }
+
+      // 3. Poll for completion
+      const segments = await pollTranscription(transcribeRes.id, content)
+      if (!segments) return
+
+      // 4. Show editor
+      showSubtitleEditor(modal, blobUrl, filename, segments)
+
+    } catch (err) {
+      content.innerHTML = '<div class="sub-progress" style="color:#e55">發生錯誤: ' + (err.message || '未知錯誤') + '</div>'
+    }
+  }
+
+  function pollTranscription(transcribeId, contentEl) {
+    return new Promise(function(resolve) {
+      var attempts = 0
+      var maxAttempts = 300 // 10 min max
+      var timer = setInterval(async function() {
+        attempts++
+        try {
+          var result = await apiGet('/api/transcribe/' + transcribeId)
+          if (result.status === 'ready' && result.segments) {
+            clearInterval(timer)
+            resolve(result.segments)
+          } else if (result.status === 'error') {
+            clearInterval(timer)
+            contentEl.innerHTML = '<div class="sub-progress" style="color:#e55">轉錄失敗: ' + (result.error || '未知錯誤') + '</div>'
+            resolve(null)
+          } else {
+            var dots = '.'.repeat((attempts % 3) + 1)
+            var msgEl = contentEl.querySelector('.sub-progress div:last-child')
+            if (msgEl) msgEl.textContent = '正在轉錄字幕' + dots
+          }
+        } catch (err) {
+          // network error, keep polling
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(timer)
+          contentEl.innerHTML = '<div class="sub-progress" style="color:#e55">轉錄逾時，請重試</div>'
+          resolve(null)
+        }
+      }, 2000)
+    })
+  }
+
+  function showSubtitleEditor(modal, blobUrl, filename, rawSegments) {
+    // Clone segments immutably
+    var segments = rawSegments.map(function(s) {
+      return { start: s.start, end: s.end, text: s.text }
+    })
+
+    var subStyle = { fontSize: 32, color: '#ffffff', bgEnabled: true, position: 'bottom' }
+
+    var body = modal.querySelector('.sub-modal-body')
+
+    // Rebuild modal content
+    var content = modal.querySelector('.sub-modal-content')
+    content.innerHTML =
+      '<div class="sub-video-container">' +
+        '<video class="sub-video-preview" controls></video>' +
+        '<canvas></canvas>' +
+      '</div>' +
+      '<div class="sub-segments"></div>' +
+      '<div class="sub-style-bar">' +
+        '<label>字型大小 <select class="sub-font-size">' +
+          '<option value="24">24px</option>' +
+          '<option value="28">28px</option>' +
+          '<option value="32" selected>32px</option>' +
+          '<option value="36">36px</option>' +
+          '<option value="42">42px</option>' +
+        '</select></label>' +
+        '<label>顏色 <input type="color" class="sub-color" value="#ffffff"></label>' +
+        '<label><input type="checkbox" class="sub-bg-toggle" checked> 背景</label>' +
+        '<label>位置 <select class="sub-position">' +
+          '<option value="bottom" selected>底部</option>' +
+          '<option value="top">頂部</option>' +
+        '</select></label>' +
+      '</div>'
+
+    // Add bottom actions bar
+    var existingActions = modal.querySelector('.sub-actions')
+    if (existingActions) existingActions.remove()
+
+    var actionsBar = document.createElement('div')
+    actionsBar.className = 'sub-actions'
+    actionsBar.innerHTML =
+      '<button class="sub-btn-cancel">取消</button>' +
+      '<button class="sub-btn-export">輸出帶字幕影片</button>'
+    body.appendChild(actionsBar)
+
+    var video = content.querySelector('.sub-video-preview')
+    video.src = blobUrl
+
+    var overlayCanvas = content.querySelector('canvas')
+    var segmentsContainer = content.querySelector('.sub-segments')
+
+    // Style controls
+    content.querySelector('.sub-font-size').addEventListener('change', function(e) {
+      subStyle = Object.assign({}, subStyle, { fontSize: parseInt(e.target.value, 10) })
+    })
+    content.querySelector('.sub-color').addEventListener('input', function(e) {
+      subStyle = Object.assign({}, subStyle, { color: e.target.value })
+    })
+    content.querySelector('.sub-bg-toggle').addEventListener('change', function(e) {
+      subStyle = Object.assign({}, subStyle, { bgEnabled: e.target.checked })
+    })
+    content.querySelector('.sub-position').addEventListener('change', function(e) {
+      subStyle = Object.assign({}, subStyle, { position: e.target.value })
+    })
+
+    // Render segment list
+    function renderSegments() {
+      segmentsContainer.innerHTML = ''
+      segments.forEach(function(seg, idx) {
+        var row = document.createElement('div')
+        row.className = 'sub-segment'
+        row.dataset.idx = idx
+
+        var timeSpan = document.createElement('span')
+        timeSpan.className = 'sub-segment-time'
+        timeSpan.textContent = fmtSubTime(seg.start) + ' - ' + fmtSubTime(seg.end)
+
+        var textInput = document.createElement('textarea')
+        textInput.className = 'sub-segment-text'
+        textInput.value = seg.text
+        textInput.rows = 1
+        textInput.addEventListener('input', function(e) {
+          // Immutable update
+          segments = segments.map(function(s, i) {
+            return i === idx ? Object.assign({}, s, { text: e.target.value }) : s
+          })
+        })
+        textInput.addEventListener('click', function(e) {
+          e.stopPropagation()
+        })
+
+        var delBtn = document.createElement('button')
+        delBtn.className = 'sub-segment-del'
+        delBtn.textContent = '\u00d7'
+        delBtn.title = '刪除此段'
+        delBtn.addEventListener('click', function(e) {
+          e.stopPropagation()
+          segments = segments.filter(function(_, i) { return i !== idx })
+          renderSegments()
+        })
+
+        row.appendChild(timeSpan)
+        row.appendChild(textInput)
+        row.appendChild(delBtn)
+
+        row.addEventListener('click', function() {
+          video.currentTime = seg.start
+          video.play()
+        })
+
+        segmentsContainer.appendChild(row)
+      })
+    }
+
+    renderSegments()
+
+    // Canvas overlay for subtitle preview
+    function resizeOverlay() {
+      if (!video.videoWidth) return
+      var rect = video.getBoundingClientRect()
+      overlayCanvas.width = rect.width
+      overlayCanvas.height = rect.height
+      overlayCanvas.style.width = rect.width + 'px'
+      overlayCanvas.style.height = rect.height + 'px'
+    }
+
+    video.addEventListener('loadedmetadata', resizeOverlay)
+    window.addEventListener('resize', resizeOverlay)
+
+    function drawSubtitleOverlay() {
+      if (!overlayCanvas.width) resizeOverlay()
+      var ctx = overlayCanvas.getContext('2d')
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
+
+      var currentSeg = findCurrentSegment(video.currentTime, segments)
+      if (currentSeg && currentSeg.text.trim()) {
+        var scaleX = overlayCanvas.width / (video.videoWidth || 1)
+        var scaledFontSize = Math.round(subStyle.fontSize * scaleX)
+        if (scaledFontSize < 12) scaledFontSize = 12
+
+        ctx.font = 'bold ' + scaledFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+        ctx.textAlign = 'center'
+
+        var text = currentSeg.text
+        var maxWidth = overlayCanvas.width * 0.88
+        var lines = wrapSubtitleText(ctx, text, maxWidth)
+        var lineHeight = scaledFontSize * 1.35
+        var totalHeight = lines.length * lineHeight
+        var x = overlayCanvas.width / 2
+        var y = subStyle.position === 'top'
+          ? scaledFontSize + 16
+          : overlayCanvas.height - totalHeight - 16
+
+        // Draw background
+        if (subStyle.bgEnabled) {
+          var bgPadH = 10
+          var bgPadV = 6
+          lines.forEach(function(line, li) {
+            var tw = ctx.measureText(line).width
+            var ly = y + li * lineHeight
+            ctx.fillStyle = 'rgba(0,0,0,0.6)'
+            roundRect(ctx, x - tw / 2 - bgPadH, ly - scaledFontSize + 2 - bgPadV, tw + bgPadH * 2, scaledFontSize + bgPadV * 2, 6)
+          })
+        }
+
+        // Draw text
+        ctx.fillStyle = subStyle.color
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)'
+        ctx.lineWidth = 2
+        lines.forEach(function(line, li) {
+          var ly = y + li * lineHeight
+          ctx.strokeText(line, x, ly)
+          ctx.fillText(line, x, ly)
+        })
+      }
+
+      // Highlight active segment in list
+      var segRows = segmentsContainer.querySelectorAll('.sub-segment')
+      segRows.forEach(function(row) {
+        var idx = parseInt(row.dataset.idx, 10)
+        var seg = segments[idx]
+        if (seg && video.currentTime >= seg.start && video.currentTime <= seg.end) {
+          row.classList.add('active')
+        } else {
+          row.classList.remove('active')
+        }
+      })
+
+      requestAnimationFrame(drawSubtitleOverlay)
+    }
+
+    drawSubtitleOverlay()
+
+    // Cancel
+    actionsBar.querySelector('.sub-btn-cancel').addEventListener('click', function() {
+      URL.revokeObjectURL(blobUrl)
+      modal.remove()
+    })
+
+    // Export with subtitles
+    actionsBar.querySelector('.sub-btn-export').addEventListener('click', function() {
+      exportWithSubtitles(modal, blobUrl, filename, segments, subStyle)
+    })
+  }
+
+  function findCurrentSegment(time, segments) {
+    for (var i = 0; i < segments.length; i++) {
+      if (time >= segments[i].start && time <= segments[i].end) {
+        return segments[i]
+      }
+    }
+    return null
+  }
+
+  function wrapSubtitleText(ctx, text, maxWidth) {
+    var words = text.split('')
+    var lines = []
+    var currentLine = ''
+
+    for (var i = 0; i < words.length; i++) {
+      var testLine = currentLine + words[i]
+      if (ctx.measureText(testLine).width > maxWidth && currentLine.length > 0) {
+        lines.push(currentLine)
+        currentLine = words[i]
+      } else {
+        currentLine = testLine
+      }
+    }
+    if (currentLine) lines.push(currentLine)
+    return lines.length > 0 ? lines : ['']
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.lineTo(x + w - r, y)
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+    ctx.lineTo(x + w, y + h - r)
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+    ctx.lineTo(x + r, y + h)
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+    ctx.lineTo(x, y + r)
+    ctx.quadraticCurveTo(x, y, x + r, y)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  function exportWithSubtitles(modal, blobUrl, filename, segments, subStyle) {
+    var body = modal.querySelector('.sub-modal-body')
+    var content = modal.querySelector('.sub-modal-content')
+    var actionsBar = modal.querySelector('.sub-actions')
+
+    // Disable export button
+    var exportBtn = actionsBar.querySelector('.sub-btn-export')
+    exportBtn.disabled = true
+    exportBtn.textContent = '輸出中...'
+
+    // Add progress indicator
+    var progressEl = document.createElement('div')
+    progressEl.className = 'sub-export-progress'
+    progressEl.textContent = '準備輸出...'
+    actionsBar.insertBefore(progressEl, exportBtn)
+
+    // Create offscreen video
+    var srcVideo = document.createElement('video')
+    srcVideo.src = blobUrl
+    srcVideo.muted = true
+
+    srcVideo.addEventListener('loadedmetadata', function() {
+      var vw = srcVideo.videoWidth || 1080
+      var vh = srcVideo.videoHeight || 1920
+      var renderCanvas = document.createElement('canvas')
+      renderCanvas.width = vw
+      renderCanvas.height = vh
+      var ctx = renderCanvas.getContext('2d')
+
+      var stream = renderCanvas.captureStream(30)
+      // Also capture audio from original
+      var audioCtx = new AudioContext()
+      var audioSrc = audioCtx.createMediaElementSource(srcVideo)
+      var audioDest = audioCtx.createMediaStreamDestination()
+      audioSrc.connect(audioDest)
+      audioSrc.connect(audioCtx.destination) // keep local playback for sync
+
+      // Combine video + audio tracks
+      var combinedStream = new MediaStream()
+      stream.getVideoTracks().forEach(function(t) { combinedStream.addTrack(t) })
+      audioDest.stream.getAudioTracks().forEach(function(t) { combinedStream.addTrack(t) })
+
+      var recorder = new MediaRecorder(combinedStream, {
+        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+          ? 'video/webm;codecs=vp9,opus'
+          : 'video/webm'
+      })
+
+      var exportChunks = []
+      recorder.ondataavailable = function(e) {
+        if (e.data.size > 0) exportChunks.push(e.data)
+      }
+
+      recorder.onstop = function() {
+        audioCtx.close()
+        var exportBlob = new Blob(exportChunks, { type: 'video/webm' })
+        var exportUrl = URL.createObjectURL(exportBlob)
+        var a = document.createElement('a')
+        var subtitledName = filename.replace('.webm', '_subtitled.webm')
+        a.href = exportUrl
+        a.download = subtitledName
+        a.click()
+        setTimeout(function() { URL.revokeObjectURL(exportUrl) }, 2000)
+
+        progressEl.textContent = '輸出完成！'
+        exportBtn.textContent = '輸出帶字幕影片'
+        exportBtn.disabled = false
+      }
+
+      var duration = srcVideo.duration
+      recorder.start(200)
+      srcVideo.currentTime = 0
+      srcVideo.play()
+
+      function renderFrame() {
+        if (srcVideo.ended || srcVideo.paused) {
+          recorder.stop()
+          return
+        }
+
+        // Update progress
+        var pct = Math.round((srcVideo.currentTime / duration) * 100)
+        progressEl.textContent = '輸出中... ' + pct + '%'
+
+        // Draw video frame
+        ctx.drawImage(srcVideo, 0, 0, vw, vh)
+
+        // Find and draw subtitle
+        var currentSeg = findCurrentSegment(srcVideo.currentTime, segments)
+        if (currentSeg && currentSeg.text.trim()) {
+          var fontSize = subStyle.fontSize
+          // Scale font relative to video height (base assumes 1920 height)
+          var scaledFont = Math.round(fontSize * (vh / 1920) * 2.5)
+          if (scaledFont < 16) scaledFont = 16
+
+          ctx.font = 'bold ' + scaledFont + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+          ctx.textAlign = 'center'
+
+          var text = currentSeg.text
+          var maxWidth = vw * 0.88
+          var lines = wrapSubtitleText(ctx, text, maxWidth)
+          var lineHeight = scaledFont * 1.35
+          var totalHeight = lines.length * lineHeight
+          var x = vw / 2
+          var y = subStyle.position === 'top'
+            ? scaledFont + 40
+            : vh - totalHeight - 40
+
+          if (subStyle.bgEnabled) {
+            var bgPadH = 20
+            var bgPadV = 12
+            lines.forEach(function(line, li) {
+              var tw = ctx.measureText(line).width
+              var ly = y + li * lineHeight
+              ctx.fillStyle = 'rgba(0,0,0,0.6)'
+              roundRect(ctx, x - tw / 2 - bgPadH, ly - scaledFont + 4 - bgPadV, tw + bgPadH * 2, scaledFont + bgPadV * 2, 8)
+            })
+          }
+
+          ctx.fillStyle = subStyle.color
+          ctx.strokeStyle = 'rgba(0,0,0,0.5)'
+          ctx.lineWidth = 3
+          lines.forEach(function(line, li) {
+            var ly = y + li * lineHeight
+            ctx.strokeText(line, x, ly)
+            ctx.fillText(line, x, ly)
+          })
+        }
+
+        requestAnimationFrame(renderFrame)
+      }
+
+      renderFrame()
+    })
+
+    srcVideo.addEventListener('error', function() {
+      progressEl.textContent = '輸出失敗'
+      exportBtn.textContent = '輸出帶字幕影片'
+      exportBtn.disabled = false
+    })
+  }
+
+  // --- Init (async) ---
+
+  async function init() {
+    // Load settings from server
+    try {
+      const { settings } = await apiGet('/api/settings')
+      if (settings) {
+        // Apply mm_theme
+        if (settings.mm_theme && MM_THEMES[settings.mm_theme]) {
+          currentMmTheme = settings.mm_theme
+          mmThemeSelect.value = currentMmTheme
+          applyMmTheme(false)
+        }
+        // Apply split ratio
+        if (settings.split !== undefined) {
+          applySplit(parseInt(settings.split, 10) || 50)
+        }
+        // Apply prompter
+        if (settings.prompter_text !== undefined) {
+          prompterText.value = settings.prompter_text
+        }
+        if (settings.prompter_fontsize !== undefined) {
+          prompterFontSize = parseInt(settings.prompter_fontsize, 10) || 16
+          prompterText.style.fontSize = prompterFontSize + 'px'
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load settings:', err)
+    }
+
+    // Load topics from server
+    await loadTopics()
+
+    // localStorage migration detection
+    try {
+      const oldTopics = localStorage.getItem('reelmaker_topics')
+      if (oldTopics) {
+        const parsed = JSON.parse(oldTopics)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Server has default seed topics only — offer migration
+          const serverIsDefault = topics.length <= 3 && topics.every(t =>
+            ['AI 發展趨勢', '簡報 Demo（切到簡報模式看）', '網路賺錢'].includes(t.name)
+          )
+          if (serverIsDefault && confirm('偵測到瀏覽器中有舊的主題資料（' + parsed.length + ' 個主題），要匯入到伺服器嗎？')) {
+            const migratePayload = {
+              topics: parsed,
+              settings: {},
+            }
+            const oldTheme = localStorage.getItem('reelmaker_mm_theme')
+            if (oldTheme) migratePayload.settings.mm_theme = oldTheme
+            const oldSplit = localStorage.getItem('reelmaker_split')
+            if (oldSplit) migratePayload.settings.split = oldSplit
+            const oldPrompter = localStorage.getItem('reelmaker_prompter_text')
+            if (oldPrompter) migratePayload.settings.prompter_text = oldPrompter
+            const oldFontSize = localStorage.getItem('reelmaker_prompter_fontsize')
+            if (oldFontSize) migratePayload.settings.prompter_fontsize = oldFontSize
+
+            await apiPost('/api/migrate', migratePayload)
+
+            // Reload from server
+            await loadTopics()
+
+            // Reload settings
+            try {
+              const { settings } = await apiGet('/api/settings')
+              if (settings) {
+                if (settings.mm_theme && MM_THEMES[settings.mm_theme]) {
+                  currentMmTheme = settings.mm_theme
+                  mmThemeSelect.value = currentMmTheme
+                  applyMmTheme(false)
+                }
+                if (settings.split !== undefined) applySplit(parseInt(settings.split, 10) || 50)
+                if (settings.prompter_text !== undefined) prompterText.value = settings.prompter_text
+                if (settings.prompter_fontsize !== undefined) {
+                  prompterFontSize = parseInt(settings.prompter_fontsize, 10) || 16
+                  prompterText.style.fontSize = prompterFontSize + 'px'
+                }
+              }
+            } catch { /* ok */ }
+
+            // Clear old localStorage
+            localStorage.removeItem('reelmaker_topics')
+            localStorage.removeItem('reelmaker_mm_theme')
+            localStorage.removeItem('reelmaker_split')
+            localStorage.removeItem('reelmaker_prompter_text')
+            localStorage.removeItem('reelmaker_prompter_fontsize')
+          }
+        }
+      }
+    } catch { /* migration detection failed, continue */ }
+
+    renderTopicSelect()
+    switchTopic(currentIndex)
+    updateBgVisibility()
+    setTimeout(resizeWbCanvas, 200)
+  }
+
+  init()
+
+})()
+</script>
+</body>
+</html>

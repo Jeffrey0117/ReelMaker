@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReelMaker - 拍攝企劃</title>
+<style>
+:root {
+  --bg: #121212;
+  --surface: #1e1e1e;
+  --surface-alt: #2a2a2a;
+  --surface-hover: #333;
+  --text: #ececec;
+  --text-muted: #888;
+  --accent: #ff6b4a;
+  --accent-soft: rgba(255,107,74,0.12);
+  --accent-hover: #ff8a6a;
+  --border: #333;
+  --radius: 10px;
+  --status-idea: #fbbf24;
+  --status-prep: #60a5fa;
+  --status-done: #34d399;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header .logo {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+
+.header .subtitle { color: var(--text-muted); font-size: 13px; font-weight: 500; }
+.header .spacer { flex: 1; }
+
+.header .hdr-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.header .hdr-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Layout */
+.main-layout { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 10px;
+}
+
+.sidebar-header .label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+
+.sidebar-header button {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sidebar-header button:hover { background: var(--accent-hover); }
+
+.filter-row { display: flex; gap: 4px; padding: 0 12px 10px; }
+
+.filter-btn {
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: none;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover { color: var(--text); }
+
+.filter-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.idea-list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+
+.idea-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s;
+  margin-bottom: 2px;
+}
+
+.idea-item:hover { background: var(--surface-alt); }
+
+.idea-item.active {
+  background: var(--accent-soft);
+}
+
+.idea-item .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.idea-item .status-dot.idea { background: var(--status-idea); }
+.idea-item .status-dot.prep { background: var(--status-prep); }
+.idea-item .status-dot.done { background: var(--status-done); }
+
+.idea-item .idea-title { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.idea-item.active .idea-title { color: var(--accent); }
+.idea-item .idea-date { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
+/* Detail pane */
+.detail { flex: 1; overflow-y: auto; padding: 28px 36px; }
+
+.detail-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 14px; }
+
+.detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+
+.detail-header input {
+  flex: 1;
+  font-size: 24px;
+  font-weight: 800;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text);
+  padding: 4px 0;
+  outline: none;
+  letter-spacing: -0.5px;
+  transition: border-color 0.2s;
+}
+
+.detail-header input:focus { border-bottom-color: var(--accent); }
+
+.status-select {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+
+.detail-actions { display: flex; gap: 6px; margin-bottom: 28px; flex-wrap: wrap; }
+
+.detail-actions button {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.detail-actions button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.detail-actions button.danger:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.08); }
+
+/* Sections */
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.section-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.section-block:focus-within { border-color: var(--accent); }
+
+.section-block .sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+}
+
+.section-block .sec-head input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+
+.section-block .sec-head button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; }
+.section-block .sec-head button:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+
+.section-block textarea {
+  width: 100%;
+  padding: 14px;
+  background: var(--surface);
+  color: var(--text);
+  border: none;
+  resize: vertical;
+  min-height: 80px;
+  font-size: 14px;
+  line-height: 1.8;
+  font-family: inherit;
+  outline: none;
+}
+
+.section-block textarea::placeholder { color: #555; }
+
+.add-section-btn {
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 28px;
+  transition: all 0.15s;
+}
+
+.add-section-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* Notes */
+.notes-area {
+  width: 100%;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  resize: vertical;
+  min-height: 60px;
+  font-size: 13px;
+  line-height: 1.7;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 28px;
+  transition: border-color 0.15s;
+}
+
+.notes-area:focus { border-color: var(--accent); }
+.notes-area::placeholder { color: #555; }
+
+/* Assets */
+.assets-section { margin-bottom: 28px; }
+
+.assets-drop {
+  padding: 20px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.2s;
+}
+
+.assets-drop.dragover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.assets-drop input { display: none; }
+
+.assets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+
+.asset-thumb {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.asset-thumb:hover { border-color: var(--accent); transform: scale(1.03); }
+
+.asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.asset-thumb .file-icon {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-alt); font-size: 24px; opacity: 0.4;
+}
+
+.asset-thumb .del {
+  position: absolute; top: 4px; right: 6px;
+  font-size: 14px; color: #fff; cursor: pointer; display: none;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  background: rgba(0,0,0,0.5); width: 20px; height: 20px;
+  border-radius: 50%; text-align: center; line-height: 20px;
+}
+
+.asset-thumb:hover .del { display: block; }
+
+/* Import modal */
+.import-modal {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.import-body {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 640px; max-width: 92vw; max-height: 85vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.import-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  font-weight: 700; font-size: 15px;
+}
+
+.import-header button { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+
+.import-body textarea {
+  flex: 1; padding: 16px 20px;
+  background: var(--bg); color: var(--text);
+  border: none; resize: none;
+  font-size: 13px; line-height: 1.8;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  outline: none; min-height: 300px;
+}
+
+.import-body textarea::placeholder { color: #555; }
+
+.import-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-top: 1px solid var(--border);
+}
+
+.import-footer .hint { font-size: 11px; color: var(--text-muted); }
+
+.import-footer button {
+  padding: 8px 24px; border-radius: 20px; border: none;
+  background: var(--accent); color: #fff;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+.import-footer button:hover { background: var(--accent-hover); }
+
+/* Preview modal */
+.preview-modal {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+
+.preview-modal img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface-alt); color: var(--text);
+  padding: 10px 20px; border-radius: 20px;
+  border: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; z-index: 2000;
+  animation: toastIn 0.3s ease;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Benchmark panel */
+.benchmark-panel { padding: 28px 36px; overflow-y: auto; height: 100%; }
+.benchmark-input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.benchmark-input-row input {
+  flex: 1; padding: 10px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 14px; outline: none;
+}
+.benchmark-input-row input:focus { border-color: var(--accent); }
+.benchmark-input-row button {
+  padding: 10px 24px; border-radius: 20px; border: none;
+  background: var(--accent); color: #fff; font-size: 13px;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.benchmark-input-row button:hover { background: var(--accent-hover); }
+.benchmark-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.benchmark-list { display: flex; flex-direction: column; gap: 12px; }
+.benchmark-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; transition: border-color 0.15s;
+}
+.benchmark-card:hover { border-color: var(--accent); }
+.benchmark-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.benchmark-card-title { font-size: 15px; font-weight: 700; flex: 1; }
+.benchmark-card-status {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px;
+  font-weight: 600;
+}
+.benchmark-card-status.processing { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.benchmark-card-status.ready { background: rgba(52,211,153,0.15); color: #34d399; }
+.benchmark-card-status.error { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+.benchmark-card-del {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px;
+}
+.benchmark-card-del:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+
+.benchmark-progress { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.benchmark-progress .step { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+.benchmark-progress .step.done { color: #34d399; }
+.benchmark-progress .step.active { color: var(--accent); }
+
+.benchmark-results { margin-top: 12px; }
+.benchmark-results .theme-title { font-size: 16px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+.benchmark-results .key-points { list-style: none; margin-bottom: 12px; }
+.benchmark-results .key-points li { font-size: 13px; padding: 4px 0; color: var(--text); }
+.benchmark-results .key-points li::before { content: '\2022'; color: var(--accent); margin-right: 8px; }
+.benchmark-results .quotes { margin-bottom: 12px; }
+.benchmark-results .quote-item {
+  font-size: 13px; color: var(--text); padding: 8px 12px;
+  background: var(--surface-alt); border-radius: 8px; margin-bottom: 6px;
+  border-left: 3px solid var(--accent); font-style: italic;
+}
+.benchmark-results .transcript-preview {
+  max-height: 150px; overflow-y: auto; background: var(--surface-alt);
+  border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.7;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.benchmark-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.benchmark-actions button {
+  padding: 8px 18px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); font-size: 12px;
+  font-weight: 500; cursor: pointer; transition: all 0.15s;
+}
+.benchmark-actions button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.benchmark-actions button.primary {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.benchmark-actions button.primary:hover { background: var(--accent-hover); }
+
+@keyframes bmSpin {
+  to { transform: rotate(360deg); }
+}
+.bm-spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: bmSpin 0.8s linear infinite;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="logo">ReelMaker</span>
+  <span class="subtitle">拍攝企劃</span>
+  <span class="spacer"></span>
+  <button class="hdr-btn" id="btnImportGlobal">匯入腳本</button>
+  <a href="/" class="hdr-btn">返回錄影</a>
+</div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="label">點子列表</span>
+      <button id="btnNewIdea">+ 新增</button>
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn active" data-filter="all">全部</button>
+      <button class="filter-btn" data-filter="idea">構想</button>
+      <button class="filter-btn" data-filter="prep">準備中</button>
+      <button class="filter-btn" data-filter="done">已拍</button>
+      <button class="filter-btn" data-filter="benchmark" style="margin-left:auto;border:1px solid var(--border)">對標影片</button>
+    </div>
+    <div class="idea-list" id="ideaList"></div>
+  </div>
+
+  <div class="detail" id="detail">
+    <div class="detail-empty">選一個點子，或新增一個</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict'
+
+  const ideaList = document.getElementById('ideaList')
+  const detail = document.getElementById('detail')
+  const btnNewIdea = document.getElementById('btnNewIdea')
+  const btnImportGlobal = document.getElementById('btnImportGlobal')
+  const filterBtns = document.querySelectorAll('.filter-btn')
+
+  const STATUS_MAP = {
+    idea: { label: '構想', color: 'idea' },
+    prep: { label: '準備中', color: 'prep' },
+    done: { label: '已拍', color: 'done' },
+  }
+
+  const SCRIPT_TEMPLATE =
+    '---\n' +
+    'title: 影片標題\n' +
+    'status: idea\n' +
+    '---\n\n' +
+    '## 開場\n' +
+    '大家好，今天要聊...\n\n' +
+    '## 重點一\n' +
+    '第一個重點是...\n\n' +
+    '## CTA\n' +
+    '如果覺得有幫助...\n\n' +
+    '---notes---\n' +
+    '備註寫在這裡'
+
+  let ideas = []
+  let selectedId = null
+  let currentFilter = 'all'
+  let saveTimer = null
+  let benchmarks = []
+  let benchmarkPollers = {}
+
+  // --- Script format parser / serializer ---
+
+  function parseScript(raw) {
+    const text = (raw || '').trim()
+    let title = '未命名點子'
+    let status = 'idea'
+    let body = text
+    let notes = ''
+
+    // Extract frontmatter
+    const fmMatch = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/)
+    if (fmMatch) {
+      const fm = fmMatch[1]
+      const titleMatch = fm.match(/title:\s*(.+)/)
+      const statusMatch = fm.match(/status:\s*(.+)/)
+      if (titleMatch) title = titleMatch[1].trim()
+      if (statusMatch) {
+        const s = statusMatch[1].trim()
+        if (STATUS_MAP[s]) status = s
+      }
+      body = text.slice(fmMatch[0].length)
+    }
+
+    // Extract notes
+    const notesIdx = body.indexOf('---notes---')
+    if (notesIdx >= 0) {
+      notes = body.slice(notesIdx + 11).trim()
+      body = body.slice(0, notesIdx).trim()
+    }
+
+    // Parse ## sections
+    const sections = []
+    const sectionRegex = /^## (.+)$/gm
+    let match
+    const splits = []
+    while ((match = sectionRegex.exec(body)) !== null) {
+      splits.push({ label: match[1].trim(), start: match.index, headEnd: match.index + match[0].length })
+    }
+
+    if (splits.length === 0) {
+      sections.push({ label: '內容', content: body.trim() })
+    } else {
+      for (let i = 0; i < splits.length; i++) {
+        const contentStart = splits[i].headEnd
+        const contentEnd = i + 1 < splits.length ? splits[i + 1].start : body.length
+        sections.push({ label: splits[i].label, content: body.slice(contentStart, contentEnd).trim() })
+      }
+    }
+
+    return { title, status, sections, notes }
+  }
+
+  function serializeScript(idea) {
+    const sections = idea.sections || []
+    let out = '---\n'
+    out += 'title: ' + (idea.title || '未命名') + '\n'
+    out += 'status: ' + (idea.status || 'idea') + '\n'
+    out += '---\n\n'
+
+    for (const sec of sections) {
+      out += '## ' + (sec.label || '段落') + '\n'
+      out += (sec.content || '') + '\n\n'
+    }
+
+    if (idea.notes) {
+      out += '---notes---\n'
+      out += idea.notes + '\n'
+    }
+
+    return out.trim()
+  }
+
+  // --- API ---
+
+  async function fetchIdeas() {
+    try {
+      const res = await fetch('/api/ideas')
+      const data = await res.json()
+      ideas = data.ideas || []
+    } catch {
+      ideas = []
+    }
+    renderList()
+    if (selectedId) renderDetail()
+  }
+
+  async function createIdeaFromParsed(parsed) {
+    const res = await fetch('/api/ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsed),
+    })
+    const data = await res.json()
+    return data.idea
+  }
+
+  async function createIdea() {
+    return createIdeaFromParsed({
+      title: '新點子',
+      sections: [
+        { label: '開場', content: '' },
+        { label: '重點', content: '' },
+        { label: 'CTA', content: '' },
+      ],
+    })
+  }
+
+  async function updateIdea(id, fields) {
+    await fetch('/api/ideas/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    })
+  }
+
+  async function deleteIdea(id) {
+    await fetch('/api/ideas/' + id, { method: 'DELETE' })
+  }
+
+  async function uploadIdeaAsset(ideaId, file) {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch('/api/ideas/' + ideaId + '/assets', { method: 'POST', body: form })
+    return res.json()
+  }
+
+  async function deleteIdeaAsset(ideaId, assetId) {
+    await fetch('/api/ideas/' + ideaId + '/assets/' + assetId, { method: 'DELETE' })
+  }
+
+  // --- Debounced save ---
+
+  function autoSave(id, fields) {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(async () => {
+      await updateIdea(id, fields)
+      const idx = ideas.findIndex(i => i.id === id)
+      if (idx >= 0) {
+        ideas[idx] = { ...ideas[idx], ...fields }
+        renderList()
+      }
+    }, 600)
+  }
+
+  // --- Render list ---
+
+  function renderList() {
+    const filtered = currentFilter === 'all' ? ideas : ideas.filter(i => i.status === currentFilter)
+
+    if (filtered.length === 0) {
+      ideaList.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px">尚無點子</div>'
+      return
+    }
+
+    ideaList.innerHTML = filtered.map(i => {
+      const active = i.id === selectedId ? ' active' : ''
+      const s = STATUS_MAP[i.status] || STATUS_MAP.idea
+      const date = (i.updatedAt || i.createdAt || '').slice(0, 10)
+      return '<div class="idea-item' + active + '" data-id="' + i.id + '">' +
+        '<div class="status-dot ' + s.color + '"></div>' +
+        '<span class="idea-title">' + escHtml(i.title) + '</span>' +
+        '<span class="idea-date">' + date + '</span>' +
+      '</div>'
+    }).join('')
+
+    ideaList.querySelectorAll('.idea-item').forEach(el => {
+      el.addEventListener('click', () => {
+        selectedId = el.dataset.id
+        renderList()
+        renderDetail()
+      })
+    })
+  }
+
+  // --- Render detail ---
+
+  function renderDetail() {
+    const idea = ideas.find(i => i.id === selectedId)
+    if (!idea) {
+      detail.innerHTML = '<div class="detail-empty">選一個點子，或新增一個</div>'
+      return
+    }
+
+    const sections = idea.sections || []
+    const assets = idea.assets || []
+    let html = ''
+
+    // Header
+    html += '<div class="detail-header">'
+    html += '<input type="text" id="dTitle" value="' + escAttr(idea.title) + '" placeholder="點子標題">'
+    html += '<select class="status-select" id="dStatus">'
+    for (const [k, v] of Object.entries(STATUS_MAP)) {
+      const sel = idea.status === k ? ' selected' : ''
+      html += '<option value="' + k + '"' + sel + '>' + v.label + '</option>'
+    }
+    html += '</select></div>'
+
+    // Actions
+    html += '<div class="detail-actions">'
+    html += '<button id="dExport">複製腳本</button>'
+    html += '<button id="dImport">匯入腳本</button>'
+    html += '<button id="dDuplicate">複製點子</button>'
+    html += '<button id="dDelete" class="danger">刪除</button>'
+    html += '</div>'
+
+    // Sections
+    html += '<div class="section-label">分段腳本</div>'
+    sections.forEach((sec, i) => {
+      html += '<div class="section-block" data-sec="' + i + '">'
+      html += '<div class="sec-head">'
+      html += '<input type="text" value="' + escAttr(sec.label) + '" data-sec-label="' + i + '" placeholder="段落名稱">'
+      html += '<button data-sec-del="' + i + '" title="刪除段落">&times;</button>'
+      html += '</div>'
+      html += '<textarea data-sec-content="' + i + '" placeholder="這段要講什麼…">' + escHtml(sec.content) + '</textarea>'
+      html += '</div>'
+    })
+    html += '<button class="add-section-btn" id="dAddSec">+ 新增段落</button>'
+
+    // Notes
+    html += '<div class="section-label">備註</div>'
+    html += '<textarea class="notes-area" id="dNotes" placeholder="其他想法、參考連結…">' + escHtml(idea.notes || '') + '</textarea>'
+
+    // Assets
+    html += '<div class="section-label">素材</div>'
+    html += '<div class="assets-section">'
+    html += '<div class="assets-drop" id="dDrop"><input type="file" id="dFile" multiple accept="image/*,video/*">拖拉素材到這裡，或點擊上傳</div>'
+    html += '<div class="assets-grid" id="dAssets">'
+    assets.forEach(a => {
+      const isImage = a.type && a.type.startsWith('image/')
+      const inner = isImage
+        ? '<img src="/data/assets/' + a.filename + '" alt="" loading="lazy">'
+        : '<div class="file-icon">&#128196;</div>'
+      html += '<div class="asset-thumb" data-asset-id="' + a.id + '" data-filename="' + a.filename + '" data-type="' + (a.type || '') + '">'
+      html += inner
+      html += '<span class="del" data-adel="' + a.id + '">&times;</span>'
+      html += '</div>'
+    })
+    html += '</div></div>'
+
+    detail.innerHTML = html
+    bindDetailEvents(idea)
+  }
+
+  function bindDetailEvents(idea) {
+    // Title
+    const dTitle = document.getElementById('dTitle')
+    dTitle.addEventListener('input', () => autoSave(idea.id, { title: dTitle.value }))
+
+    // Status
+    document.getElementById('dStatus').addEventListener('change', (e) => {
+      autoSave(idea.id, { status: e.target.value })
+    })
+
+    // Export
+    document.getElementById('dExport').addEventListener('click', () => {
+      const text = serializeScript(idea)
+      navigator.clipboard.writeText(text).then(() => showToast('腳本已複製到剪貼簿'))
+    })
+
+    // Import (overwrite current idea)
+    document.getElementById('dImport').addEventListener('click', () => {
+      openImportModal((parsed) => {
+        clearTimeout(saveTimer)
+        updateIdea(idea.id, parsed).then(() => {
+          const idx = ideas.findIndex(x => x.id === idea.id)
+          if (idx >= 0) ideas[idx] = { ...ideas[idx], ...parsed }
+          renderList()
+          renderDetail()
+          showToast('已匯入')
+        })
+      })
+    })
+
+    // Duplicate
+    document.getElementById('dDuplicate').addEventListener('click', async () => {
+      const newIdea = await createIdeaFromParsed({
+        title: idea.title + ' (copy)',
+        sections: idea.sections,
+        notes: idea.notes,
+      })
+      selectedId = newIdea.id
+      await fetchIdeas()
+      showToast('已複製')
+    })
+
+    // Delete
+    document.getElementById('dDelete').addEventListener('click', async () => {
+      if (!confirm('確定刪除「' + idea.title + '」？')) return
+      await deleteIdea(idea.id)
+      selectedId = null
+      await fetchIdeas()
+      renderDetail()
+    })
+
+    // Sections
+    detail.querySelectorAll('[data-sec-label]').forEach(input => {
+      input.addEventListener('input', () => autoSave(idea.id, { sections: collectSections() }))
+    })
+    detail.querySelectorAll('[data-sec-content]').forEach(ta => {
+      ta.addEventListener('input', () => autoSave(idea.id, { sections: collectSections() }))
+    })
+
+    detail.querySelectorAll('[data-sec-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const secs = collectSections()
+        secs.splice(parseInt(btn.dataset.secDel, 10), 1)
+        clearTimeout(saveTimer)
+        updateIdea(idea.id, { sections: secs }).then(() => {
+          const idx = ideas.findIndex(x => x.id === idea.id)
+          if (idx >= 0) ideas[idx] = { ...ideas[idx], sections: secs }
+          renderDetail()
+        })
+      })
+    })
+
+    document.getElementById('dAddSec').addEventListener('click', () => {
+      const secs = collectSections()
+      secs.push({ label: '新段落', content: '' })
+      clearTimeout(saveTimer)
+      updateIdea(idea.id, { sections: secs }).then(() => {
+        const idx = ideas.findIndex(x => x.id === idea.id)
+        if (idx >= 0) ideas[idx] = { ...ideas[idx], sections: secs }
+        renderDetail()
+      })
+    })
+
+    // Notes
+    document.getElementById('dNotes').addEventListener('input', (e) => {
+      autoSave(idea.id, { notes: e.target.value })
+    })
+
+    // Assets
+    const dDrop = document.getElementById('dDrop')
+    const dFile = document.getElementById('dFile')
+    dDrop.addEventListener('click', () => dFile.click())
+    dFile.addEventListener('change', (e) => { if (e.target.files.length) uploadFiles(idea.id, Array.from(e.target.files)); dFile.value = '' })
+    dDrop.addEventListener('dragover', (e) => { e.preventDefault(); dDrop.classList.add('dragover') })
+    dDrop.addEventListener('dragleave', () => dDrop.classList.remove('dragover'))
+    dDrop.addEventListener('drop', (e) => { e.preventDefault(); dDrop.classList.remove('dragover'); if (e.dataTransfer.files.length) uploadFiles(idea.id, Array.from(e.dataTransfer.files)) })
+
+    detail.querySelectorAll('.asset-thumb').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.del')) return
+        if ((el.dataset.type || '').startsWith('image/')) showPreview('/data/assets/' + el.dataset.filename)
+      })
+    })
+
+    detail.querySelectorAll('[data-adel]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        await deleteIdeaAsset(idea.id, btn.dataset.adel)
+        await fetchIdeas()
+        showToast('已刪除')
+      })
+    })
+  }
+
+  function collectSections() {
+    const secs = []
+    detail.querySelectorAll('.section-block').forEach(block => {
+      const i = parseInt(block.dataset.sec, 10)
+      secs.push({
+        label: block.querySelector('[data-sec-label="' + i + '"]').value,
+        content: block.querySelector('[data-sec-content="' + i + '"]').value,
+      })
+    })
+    return secs
+  }
+
+  async function uploadFiles(ideaId, files) {
+    for (const file of files) {
+      try { await uploadIdeaAsset(ideaId, file); showToast(file.name + ' 上傳成功') }
+      catch { showToast('上傳失敗') }
+    }
+    await fetchIdeas()
+  }
+
+  // --- Import modal ---
+
+  function openImportModal(onConfirm) {
+    const modal = document.createElement('div')
+    modal.className = 'import-modal'
+    modal.innerHTML =
+      '<div class="import-body">' +
+        '<div class="import-header"><span>匯入腳本</span><button class="im-close">&times;</button></div>' +
+        '<textarea id="imText" placeholder="' + escAttr(SCRIPT_TEMPLATE) + '"></textarea>' +
+        '<div class="import-footer">' +
+          '<span class="hint">格式：--- frontmatter --- / ## 段落 / ---notes---</span>' +
+          '<button id="imConfirm">匯入</button>' +
+        '</div>' +
+      '</div>'
+
+    document.body.appendChild(modal)
+    modal.querySelector('.im-close').addEventListener('click', () => modal.remove())
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove() })
+
+    document.getElementById('imConfirm').addEventListener('click', () => {
+      const text = document.getElementById('imText').value.trim()
+      if (!text) { showToast('請貼上腳本內容'); return }
+      const parsed = parseScript(text)
+      modal.remove()
+      onConfirm(parsed)
+    })
+
+    document.getElementById('imText').focus()
+  }
+
+  // Global import (header button) — creates new idea
+  btnImportGlobal.addEventListener('click', () => {
+    openImportModal(async (parsed) => {
+      const idea = await createIdeaFromParsed(parsed)
+      selectedId = idea.id
+      await fetchIdeas()
+      showToast('已匯入為新點子')
+    })
+  })
+
+  // --- Filter ---
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentFilter = btn.dataset.filter
+      filterBtns.forEach(b => b.classList.toggle('active', b === btn))
+      if (currentFilter === 'benchmark') {
+        selectedId = null
+        ideaList.innerHTML = ''
+        fetchBenchmarks().then(() => renderBenchmarkPanel())
+      } else {
+        renderList()
+        if (!selectedId) {
+          detail.innerHTML = '<div class="detail-empty">選一個點子，或新增一個</div>'
+        } else {
+          renderDetail()
+        }
+      }
+    })
+  })
+
+  // --- New idea ---
+
+  btnNewIdea.addEventListener('click', async () => {
+    const idea = await createIdea()
+    selectedId = idea.id
+    await fetchIdeas()
+  })
+
+  // --- Helpers ---
+
+  function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+  function escAttr(s) { return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;') }
+
+  function showPreview(src) {
+    const modal = document.createElement('div')
+    modal.className = 'preview-modal'
+    modal.innerHTML = '<img src="' + src + '" alt="">'
+    document.body.appendChild(modal)
+    modal.addEventListener('click', () => modal.remove())
+    document.addEventListener('keydown', function handler(e) {
+      if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', handler) }
+    })
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div')
+    toast.className = 'toast'
+    toast.textContent = msg
+    document.body.appendChild(toast)
+    setTimeout(() => toast.remove(), 2000)
+  }
+
+  // --- Benchmark ---
+
+  async function fetchBenchmarks() {
+    try {
+      const res = await fetch('/api/benchmark')
+      const data = await res.json()
+      benchmarks = data.benchmarks || []
+    } catch {
+      benchmarks = []
+    }
+  }
+
+  function renderBenchmarkPanel() {
+    let html = '<div class="benchmark-panel">'
+    html += '<div class="section-label">對標影片分析</div>'
+
+    // Input row
+    html += '<div class="benchmark-input-row">'
+    html += '<input type="text" id="bmUrl" placeholder="貼上 YouTube 網址..." autocomplete="off">'
+    html += '<button id="bmSubmit">開始分析</button>'
+    html += '</div>'
+
+    // Benchmark cards
+    html += '<div class="benchmark-list" id="bmList">'
+    if (benchmarks.length === 0) {
+      html += '<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px">尚無對標影片</div>'
+    } else {
+      benchmarks.forEach(bm => {
+        html += renderBenchmarkCard(bm)
+      })
+    }
+    html += '</div>'
+    html += '</div>'
+
+    detail.innerHTML = html
+
+    // Bind submit
+    const bmUrl = document.getElementById('bmUrl')
+    const bmSubmit = document.getElementById('bmSubmit')
+
+    bmSubmit.addEventListener('click', () => {
+      const url = bmUrl.value.trim()
+      if (!url) { showToast('請輸入 YouTube 網址'); return }
+      submitBenchmark(url)
+      bmUrl.value = ''
+    })
+
+    bmUrl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') bmSubmit.click()
+    })
+
+    // Bind card actions
+    bindBenchmarkCardEvents()
+
+    // Start polling for any processing benchmarks
+    benchmarks.forEach(bm => {
+      if (bm.status === 'processing') {
+        pollBenchmark(bm.id)
+      }
+    })
+  }
+
+  function renderBenchmarkCard(bm) {
+    const statusLabel = bm.status === 'processing' ? '分析中' : bm.status === 'ready' ? '完成' : '錯誤'
+    const title = bm.title || bm.url || '未知影片'
+
+    let html = '<div class="benchmark-card" data-bm-id="' + bm.id + '">'
+    html += '<div class="benchmark-card-header">'
+    html += '<span class="benchmark-card-title">' + escHtml(title) + '</span>'
+    html += '<span class="benchmark-card-status ' + bm.status + '">' + statusLabel + '</span>'
+    html += '<button class="benchmark-card-del" data-bm-del="' + bm.id + '" title="刪除">&times;</button>'
+    html += '</div>'
+
+    if (bm.status === 'processing') {
+      html += renderBenchmarkProgress(bm)
+    } else if (bm.status === 'error') {
+      html += '<div style="color:#ef4444;font-size:13px">' + escHtml(bm.error || '分析失敗') + '</div>'
+    } else if (bm.status === 'ready') {
+      html += renderBenchmarkResults(bm)
+    }
+
+    html += '</div>'
+    return html
+  }
+
+  function renderBenchmarkProgress(bm) {
+    const steps = [
+      { key: 'download', label: '下載中...' },
+      { key: 'transcribe', label: '轉錄中...' },
+      { key: 'translate', label: '翻譯中...' },
+      { key: 'analyze', label: '提取重點中...' },
+    ]
+
+    const progress = bm.progress || {}
+    let html = '<div class="benchmark-progress">'
+    let foundActive = false
+    steps.forEach(s => {
+      let cls = ''
+      if (progress[s.key] === 'done') {
+        cls = ' done'
+      } else if (!foundActive) {
+        cls = ' active'
+        foundActive = true
+      }
+      const icon = progress[s.key] === 'done' ? '&#10003; ' : (cls === ' active' ? '<span class="bm-spinner"></span> ' : '')
+      html += '<div class="step' + cls + '">' + icon + s.label + '</div>'
+    })
+    html += '</div>'
+    return html
+  }
+
+  function renderBenchmarkResults(bm) {
+    const appreciation = bm.appreciation || bm.benchmark || {}
+    const theme = appreciation.theme || ''
+    const keyPoints = appreciation.keyPoints || []
+    const goldenQuotes = appreciation.goldenQuotes || []
+    const segments = bm.segments || []
+
+    let html = '<div class="benchmark-results">'
+
+    // Theme
+    if (theme) {
+      html += '<div class="theme-title">' + escHtml(theme) + '</div>'
+    }
+
+    // Key points
+    if (keyPoints.length > 0) {
+      html += '<ul class="key-points">'
+      keyPoints.forEach(kp => {
+        html += '<li>' + escHtml(typeof kp === 'string' ? kp : kp.text || kp.point || JSON.stringify(kp)) + '</li>'
+      })
+      html += '</ul>'
+    }
+
+    // Golden quotes
+    if (goldenQuotes.length > 0) {
+      html += '<div class="section-label" style="margin-top:8px;margin-bottom:6px">金句</div>'
+      html += '<div class="quotes">'
+      goldenQuotes.forEach(q => {
+        const text = typeof q === 'string' ? q : q.text || q.quote || JSON.stringify(q)
+        html += '<div class="quote-item">' + escHtml(text) + '</div>'
+      })
+      html += '</div>'
+    }
+
+    // Transcript preview
+    if (segments.length > 0) {
+      html += '<div class="section-label" style="margin-top:8px;margin-bottom:6px">逐字稿預覽</div>'
+      html += '<div class="transcript-preview">'
+      const previewSegments = segments.slice(0, 30)
+      previewSegments.forEach(seg => {
+        const time = seg.start != null ? formatTime(seg.start) : ''
+        const text = seg.text || seg.translatedText || ''
+        html += '<div>' + (time ? '<span style="color:var(--accent);margin-right:6px">' + time + '</span>' : '') + escHtml(text) + '</div>'
+      })
+      if (segments.length > 30) {
+        html += '<div style="color:var(--text-muted);margin-top:4px">... 還有 ' + (segments.length - 30) + ' 段</div>'
+      }
+      html += '</div>'
+    }
+
+    // Actions
+    html += '<div class="benchmark-actions">'
+    html += '<button class="primary" data-bm-generate="' + bm.id + '">匯入為主題</button>'
+    html += '</div>'
+
+    html += '</div>'
+    return html
+  }
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60)
+    const s = Math.floor(seconds % 60)
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
+  }
+
+  function bindBenchmarkCardEvents() {
+    // Delete buttons
+    detail.querySelectorAll('[data-bm-del]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        const id = btn.dataset.bmDel
+        if (!confirm('確定刪除此對標影片？')) return
+        await deleteBenchmark(id)
+      })
+    })
+
+    // Generate buttons
+    detail.querySelectorAll('[data-bm-generate]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.bmGenerate
+        btn.disabled = true
+        btn.textContent = '匯入中...'
+        await generateFromBenchmark(id)
+      })
+    })
+  }
+
+  async function submitBenchmark(url) {
+    const bmSubmit = document.getElementById('bmSubmit')
+    if (bmSubmit) {
+      bmSubmit.disabled = true
+      bmSubmit.textContent = '提交中...'
+    }
+
+    try {
+      const res = await fetch('/api/benchmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        showToast(data.error || '提交失敗')
+        return
+      }
+
+      showToast('已開始分析')
+      await fetchBenchmarks()
+      renderBenchmarkPanel()
+      pollBenchmark(data.id)
+    } catch {
+      showToast('提交失敗，請確認網址格式')
+    } finally {
+      if (bmSubmit) {
+        bmSubmit.disabled = false
+        bmSubmit.textContent = '開始分析'
+      }
+    }
+  }
+
+  function pollBenchmark(id) {
+    // Clear existing poller for this id
+    if (benchmarkPollers[id]) {
+      clearInterval(benchmarkPollers[id])
+    }
+
+    benchmarkPollers[id] = setInterval(async () => {
+      try {
+        const res = await fetch('/api/benchmark/' + id)
+        if (!res.ok) {
+          clearInterval(benchmarkPollers[id])
+          delete benchmarkPollers[id]
+          return
+        }
+        const data = await res.json()
+        const bm = data.benchmark || data
+
+        // Update in local array
+        const idx = benchmarks.findIndex(b => b.id === id)
+        if (idx >= 0) {
+          benchmarks[idx] = { ...benchmarks[idx], ...bm }
+        }
+
+        if (bm.status === 'ready' || bm.status === 'error') {
+          clearInterval(benchmarkPollers[id])
+          delete benchmarkPollers[id]
+          if (currentFilter === 'benchmark') {
+            renderBenchmarkPanel()
+          }
+          if (bm.status === 'ready') {
+            showToast('對標影片分析完成！')
+          }
+        } else {
+          // Update just this card if still on benchmark view
+          if (currentFilter === 'benchmark') {
+            const cardEl = detail.querySelector('[data-bm-id="' + id + '"]')
+            if (cardEl) {
+              const tmp = document.createElement('div')
+              tmp.innerHTML = renderBenchmarkCard(bm)
+              const newCard = tmp.firstElementChild
+              cardEl.replaceWith(newCard)
+              // Re-bind events for this card
+              newCard.querySelectorAll('[data-bm-del]').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                  e.stopPropagation()
+                  if (!confirm('確定刪除此對標影片？')) return
+                  await deleteBenchmark(btn.dataset.bmDel)
+                })
+              })
+            }
+          }
+        }
+      } catch {
+        // Silently ignore poll errors
+      }
+    }, 3000)
+  }
+
+  async function deleteBenchmark(id) {
+    // Stop polling
+    if (benchmarkPollers[id]) {
+      clearInterval(benchmarkPollers[id])
+      delete benchmarkPollers[id]
+    }
+
+    try {
+      await fetch('/api/benchmark/' + id, { method: 'DELETE' })
+      benchmarks = benchmarks.filter(b => b.id !== id)
+      if (currentFilter === 'benchmark') {
+        renderBenchmarkPanel()
+      }
+      showToast('已刪除')
+    } catch {
+      showToast('刪除失敗')
+    }
+  }
+
+  async function generateFromBenchmark(id) {
+    try {
+      const res = await fetch('/api/benchmark/' + id + '/generate', { method: 'POST' })
+      const data = await res.json()
+
+      if (!res.ok) {
+        showToast(data.error || '匯入失敗')
+        return
+      }
+
+      showToast('已匯入為新主題！')
+
+      // Switch back to ideas view and select the new topic
+      const newTopicId = data.topicId
+      currentFilter = 'all'
+      filterBtns.forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'))
+      selectedId = newTopicId
+      await fetchIdeas()
+    } catch {
+      showToast('匯入失敗')
+    }
+  }
+
+  // --- Init ---
+  fetchIdeas()
+})()
+</script>
+</body>
+</html>
