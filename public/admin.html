@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ReelMaker - 拍攝企劃</title>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
 :root {
   --bg: #121212;
@@ -518,6 +519,7 @@ body {
   <span class="subtitle">拍攝企劃</span>
   <span class="spacer"></span>
   <button class="hdr-btn" id="btnImportGlobal">匯入腳本</button>
+  <button class="hdr-btn" id="btnFullscreen" title="全螢幕 (F11)" aria-label="全螢幕">⛶</button>
   <a href="/" class="hdr-btn">返回錄影</a>
 </div>
 
@@ -545,6 +547,42 @@ body {
 <script>
 (function() {
   'use strict'
+
+  // --- Modal helpers (SweetAlert2) ---
+  const swalDark = {
+    background: '#1e1e1e',
+    color: '#ececec',
+    confirmButtonColor: '#ff6b4a',
+    cancelButtonColor: '#444',
+  }
+  async function appConfirm(text, title = '確認') {
+    const r = await Swal.fire({
+      title, text, icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '確定',
+      cancelButtonText: '取消',
+      ...swalDark,
+    })
+    return r.isConfirmed
+  }
+  function appAlert(text, title = '提示', icon = 'info') {
+    return Swal.fire({ title, text, icon, ...swalDark })
+  }
+
+  // --- Fullscreen toggle ---
+  const btnFullscreen = document.getElementById('btnFullscreen')
+  if (btnFullscreen) {
+    btnFullscreen.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.error('Fullscreen failed:', err))
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen()
+      }
+    })
+    document.addEventListener('fullscreenchange', () => {
+      btnFullscreen.title = document.fullscreenElement ? '退出全螢幕 (F11)' : '全螢幕 (F11)'
+    })
+  }
 
   const ideaList = document.getElementById('ideaList')
   const detail = document.getElementById('detail')
@@ -866,7 +904,7 @@ body {
 
     // Delete
     document.getElementById('dDelete').addEventListener('click', async () => {
-      if (!confirm('確定刪除「' + idea.title + '」？')) return
+      if (!(await appConfirm('確定刪除「' + idea.title + '」？', '刪除點子'))) return
       await deleteIdea(idea.id)
       selectedId = null
       await fetchIdeas()
@@ -1231,7 +1269,7 @@ body {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation()
         const id = btn.dataset.bmDel
-        if (!confirm('確定刪除此對標影片？')) return
+        if (!(await appConfirm('確定刪除此對標影片？', '刪除對標'))) return
         await deleteBenchmark(id)
       })
     })
@@ -1326,7 +1364,7 @@ body {
               newCard.querySelectorAll('[data-bm-del]').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                   e.stopPropagation()
-                  if (!confirm('確定刪除此對標影片？')) return
+                  if (!(await appConfirm('確定刪除此對標影片？', '刪除對標'))) return
                   await deleteBenchmark(btn.dataset.bmDel)
                 })
               })

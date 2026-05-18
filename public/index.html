@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
 <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
 :root {
   --bg: #121212;
@@ -1358,6 +1359,7 @@ body.recording .storyboard-panel {
   </select>
   <button id="btnLayout">排版</button>
   <button id="btnRecord" class="primary">錄影</button>
+  <button id="btnFullscreen" title="全螢幕 (F11)" aria-label="全螢幕">⛶</button>
   <a href="/admin" target="_blank" style="font-size:12px;color:var(--text-muted);text-decoration:none;margin-left:4px" title="拍攝企劃後台">企劃</a>
 </div>
 
@@ -1458,6 +1460,41 @@ body.recording .storyboard-panel {
 <script>
 (function() {
   'use strict'
+
+  // --- Modal helpers (SweetAlert2) ---
+
+  const swalDark = {
+    background: '#1e1e1e',
+    color: '#ececec',
+    confirmButtonColor: '#ff6b4a',
+    cancelButtonColor: '#444',
+  }
+
+  async function appConfirm(text, title = '確認') {
+    const r = await Swal.fire({
+      title, text, icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '確定',
+      cancelButtonText: '取消',
+      ...swalDark,
+    })
+    return r.isConfirmed
+  }
+
+  async function appPrompt(title, inputPlaceholder = '') {
+    const r = await Swal.fire({
+      title, input: 'text', inputPlaceholder,
+      showCancelButton: true,
+      confirmButtonText: '確定',
+      cancelButtonText: '取消',
+      ...swalDark,
+    })
+    return r.isConfirmed ? (r.value || '').trim() : null
+  }
+
+  function appAlert(text, title = '提示', icon = 'info') {
+    return Swal.fire({ title, text, icon, ...swalDark })
+  }
 
   // --- API helpers ---
 
@@ -1871,7 +1908,7 @@ body.recording .storyboard-panel {
       })
       .catch(err => {
         console.error('Webcam access denied:', err)
-        alert('無法取得 Webcam 權限')
+        appAlert('無法取得 Webcam 權限', '錯誤', 'error')
       })
   }
 
@@ -2957,7 +2994,7 @@ body.recording .storyboard-panel {
   })
 
   btnNew.addEventListener('click', async () => {
-    const name = prompt('新主題名稱：')
+    const name = await appPrompt('新主題名稱', '例如：AI 趨勢')
     if (!name) return
     const data = await apiPost('/api/topics', { name, markdown: '# ' + name })
     if (data.topic) {
@@ -2970,10 +3007,10 @@ body.recording .storyboard-panel {
 
   btnDelete.addEventListener('click', async () => {
     if (topics.length <= 1) {
-      alert('至少保留一個主題')
+      appAlert('至少保留一個主題', '無法刪除', 'warning')
       return
     }
-    if (!confirm(`確定刪除「${topics[currentIndex].name}」？`)) return
+    if (!(await appConfirm(`確定刪除「${topics[currentIndex].name}」？`, '刪除主題'))) return
     const topic = topics[currentIndex]
     if (topic && topic.id) {
       await apiDelete('/api/topics/' + topic.id)
@@ -2985,6 +3022,22 @@ body.recording .storyboard-panel {
   })
 
   btnRecord.addEventListener('click', enterRecordingMode)
+
+  // Fullscreen toggle
+  const btnFullscreen = document.getElementById('btnFullscreen')
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error('Fullscreen failed:', err)
+      })
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen()
+    }
+  }
+  btnFullscreen.addEventListener('click', toggleFullscreen)
+  document.addEventListener('fullscreenchange', () => {
+    btnFullscreen.title = document.fullscreenElement ? '退出全螢幕 (F11)' : '全螢幕 (F11)'
+  })
 
   recBtn.addEventListener('click', () => {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -3189,15 +3242,15 @@ body.recording .storyboard-panel {
   dtEraser.addEventListener('click', () => setWbMode('eraser'))
   dtColor.addEventListener('input', (e) => { wbPenColor = e.target.value })
   dtImg.addEventListener('click', () => wbImgFile.click())
-  dtClear.addEventListener('click', () => {
-    if (confirm('清除所有畫筆和圖片？')) clearWhiteboard()
+  dtClear.addEventListener('click', async () => {
+    if (await appConfirm('清除所有畫筆和圖片？', '清除白板')) clearWhiteboard()
   })
 
   // Toolbar events (edit mode)
   edPen.addEventListener('click', () => setWbMode('pen'))
   edImg.addEventListener('click', () => wbImgFile.click())
-  edClear.addEventListener('click', () => {
-    if (confirm('清除所有畫筆和圖片？')) clearWhiteboard()
+  edClear.addEventListener('click', async () => {
+    if (await appConfirm('清除所有畫筆和圖片？', '清除白板')) clearWhiteboard()
   })
 
   wbImgFile.addEventListener('change', (e) => {
@@ -3816,7 +3869,7 @@ body.recording .storyboard-panel {
           const serverIsDefault = topics.length <= 3 && topics.every(t =>
             ['AI 發展趨勢', '簡報 Demo（切到簡報模式看）', '網路賺錢'].includes(t.name)
           )
-          if (serverIsDefault && confirm('偵測到瀏覽器中有舊的主題資料（' + parsed.length + ' 個主題），要匯入到伺服器嗎？')) {
+          if (serverIsDefault && (await appConfirm('偵測到瀏覽器中有舊的主題資料（' + parsed.length + ' 個主題），要匯入到伺服器嗎？', '匯入舊資料'))) {
             const migratePayload = {
               topics: parsed,
               settings: {},
