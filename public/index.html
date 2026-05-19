@@ -721,6 +721,39 @@ body.recording .teleprompter {
   outline: none;
 }
 
+.swap-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.swap-btn:hover {
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+body.recording.swapped .preview-pane { order: 2; }
+body.recording.swapped .bg-layer { order: 1; }
+
+.rec-bg-select select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+
 /* Markmap styling */
 .preview-pane svg#markmap {
   background: var(--mm-bg);
@@ -1056,6 +1089,10 @@ body.recording .storyboard-panel {
 .sb-thumb:hover {
   border-color: var(--accent);
   transform: scale(1.05);
+}
+.sb-thumb.active-bg {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .sb-thumb img {
@@ -1691,6 +1728,15 @@ body.recording .storyboard-panel {
     <option value="60">60:40</option>
     <option value="70">70:30</option>
   </select>
+  <button class="swap-btn" id="swapBtn" title="交換上下位置">&#8645;</button>
+  <div class="rec-bg-select" id="recBgSelect">
+    <select id="recBgSource">
+      <option value="3d">3D場景</option>
+      <option value="slides">簡報</option>
+      <option value="upload">上傳影片</option>
+      <option value="webcam">Webcam</option>
+    </select>
+  </div>
 </div>
 <div class="draw-tools" id="drawTools">
   <button id="dtPen" title="畫筆">&#9998;</button>
@@ -1848,6 +1894,8 @@ body.recording .storyboard-panel {
   const bg3d = document.getElementById('bg3d')
   const sceneSelect = document.getElementById('sceneSelect')
   const splitSelect = document.getElementById('splitSelect')
+  const swapBtn = document.getElementById('swapBtn')
+  const recBgSource = document.getElementById('recBgSource')
   const recBtn = document.getElementById('recBtn')
   const recTimer = document.getElementById('recTimer')
   const recTimeSpan = document.getElementById('recTime')
@@ -2281,6 +2329,7 @@ body.recording .storyboard-panel {
     isRecording = true
     document.body.classList.add('recording')
     bgLayer.style.display = 'flex'
+    recBgSource.value = getSelectedSource()
     updateBgVisibility()
     updateRenderMode()
 
@@ -2318,6 +2367,7 @@ body.recording .storyboard-panel {
     wbLayer.classList.remove('active')
     isRecording = false
     document.body.classList.remove('recording')
+    document.body.classList.remove('swapped')
     bgLayer.style.display = 'none'
 
     if (bgVideo.src) {
@@ -3141,8 +3191,9 @@ body.recording .storyboard-panel {
     const sb = getStoryboards()
 
     // Recording mode panel
+    const isSlidesMode = getSelectedSource() === 'slides'
     sbPanelGrid.innerHTML = sb.map((item, i) =>
-      '<div class="sb-thumb" data-index="' + i + '">' +
+      '<div class="sb-thumb' + (isSlidesMode && i === slidesIndex ? ' active-bg' : '') + '" data-index="' + i + '">' +
         '<img src="' + (item.url || item.dataUrl || '') + '" alt="">' +
         '<span class="sb-index">' + (i + 1) + '</span>' +
         '<span class="sb-del" data-del="' + i + '">&times;</span>' +
@@ -3158,10 +3209,20 @@ body.recording .storyboard-panel {
     ).join('')
 
     // Click to toggle overlay (recording panel) — same thumb again = hide
+    // If bg source is 'slides', also switch the background slide
     sbPanelGrid.querySelectorAll('.sb-thumb').forEach(el => {
       el.addEventListener('click', (e) => {
         if (e.target.classList.contains('sb-del')) return
         const idx = parseInt(el.dataset.index, 10)
+
+        // Update slides background
+        if (getSelectedSource() === 'slides') {
+          slidesIndex = idx
+          renderSlidesBg()
+          updateSbActiveIndicator()
+        }
+
+        // Toggle overlay
         if (activeStoryboard === idx) {
           hideStoryboard()
         } else {
@@ -3215,6 +3276,14 @@ body.recording .storyboard-panel {
     if (getSelectedSource() === 'slides') {
       renderSlidesBg()
     }
+  }
+
+  function updateSbActiveIndicator() {
+    const isSlidesMode = getSelectedSource() === 'slides'
+    sbPanelGrid.querySelectorAll('.sb-thumb').forEach(el => {
+      const idx = parseInt(el.dataset.index, 10)
+      el.classList.toggle('active-bg', isSlidesMode && idx === slidesIndex)
+    })
   }
 
   let sbOverlayDragging = false
@@ -3577,7 +3646,20 @@ body.recording .storyboard-panel {
   })
 
   sourceRadios.forEach(r => {
-    r.addEventListener('change', updateBgVisibility)
+    r.addEventListener('change', () => {
+      recBgSource.value = getSelectedSource()
+      updateBgVisibility()
+    })
+  })
+
+  swapBtn.addEventListener('click', () => {
+    document.body.classList.toggle('swapped')
+  })
+
+  recBgSource.addEventListener('change', () => {
+    const val = recBgSource.value
+    sourceRadios.forEach(r => { r.checked = r.value === val })
+    updateBgVisibility()
   })
 
   videoFile.addEventListener('change', (e) => {
