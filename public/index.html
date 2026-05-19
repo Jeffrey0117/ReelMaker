@@ -1978,11 +1978,6 @@ body.recording .storyboard-panel {
   let recTickInterval = null
   let mm = null
   let webcamStream = null
-  // Static pre-recorded 3D scene videos { grassland: '/videos/bg-grassland.webm', ... }
-  const bg3dVideos = {}
-  ;['grassland', 'cave', 'sky', 'ocean'].forEach(id => {
-    bg3dVideos[id] = '/videos/bg-' + id + '.webm'
-  })
   let activeStoryboard = -1 // index of currently shown storyboard, -1 = none
   let slidesIndex = 0 // current slide in "簡報" background mode
 
@@ -2444,11 +2439,6 @@ body.recording .storyboard-panel {
 
   async function startCapture() {
     try {
-      // Switch to static pre-recorded 3D video (frees GPU completely)
-      if (getSelectedSource() === '3d') {
-        activatePreRendered()
-      }
-
       // 1. Get display stream (current tab) — include system audio
       displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: 'browser' },
@@ -2470,10 +2460,10 @@ body.recording .storyboard-panel {
         micStream = null
       }
 
-      // 3. Set up canvas for 9:16 crop
+      // 3. Set up canvas for 9:16 crop (720p for lighter encoding)
       captureCanvas = document.createElement('canvas')
-      captureCanvas.width = 1080
-      captureCanvas.height = 1920
+      captureCanvas.width = 720
+      captureCanvas.height = 1280
       captureCtx = captureCanvas.getContext('2d')
 
       captureVideo = document.createElement('video')
@@ -2506,25 +2496,23 @@ body.recording .storyboard-panel {
             cropX = 0
             cropY = (srcH - cropH) / 2
           }
-          captureCtx.drawImage(captureVideo, cropX, cropY, cropW, cropH, 0, 0, 1080, 1920)
+          captureCtx.drawImage(captureVideo, cropX, cropY, cropW, cropH, 0, 0, 720, 1280)
 
           // Draw storyboard overlay onto canvas if visible
           const sbImg = storyboardOverlay.querySelector('img')
           if (sbImg && sbImg.complete && sbImg.naturalWidth && storyboardOverlay.classList.contains('visible')) {
             const paneRect = previewPane.getBoundingClientRect()
             const imgRect = sbImg.getBoundingClientRect()
-            // Convert DOM position to canvas coordinates
             const relX = (imgRect.left + imgRect.width / 2 - paneRect.left) / paneRect.width
             const relY = (imgRect.top + imgRect.height / 2 - paneRect.top) / paneRect.height
-            // Scale image to fit canvas proportionally
             const scale = Math.min(
-              (1080 * 0.9) / sbImg.naturalWidth,
-              (1920 * 0.9) / sbImg.naturalHeight
+              (720 * 0.9) / sbImg.naturalWidth,
+              (1280 * 0.9) / sbImg.naturalHeight
             )
             const drawW = sbImg.naturalWidth * scale
             const drawH = sbImg.naturalHeight * scale
-            const drawX = relX * 1080 - drawW / 2
-            const drawY = relY * 1920 - drawH / 2
+            const drawX = relX * 720 - drawW / 2
+            const drawY = relY * 1280 - drawH / 2
             captureCtx.drawImage(sbImg, drawX, drawY, drawW, drawH)
           }
         }
@@ -2533,7 +2521,7 @@ body.recording .storyboard-panel {
       drawFrame()
 
       // 6. Combine canvas video + all audio (system + mic)
-      const canvasStream = captureCanvas.captureStream(30)
+      const canvasStream = captureCanvas.captureStream(24)
       const tracks = [...canvasStream.getVideoTracks()]
 
       // Merge system audio + mic audio via AudioContext with gain control
@@ -2562,14 +2550,9 @@ body.recording .storyboard-panel {
 
       // 7. Record
       recordedChunks = []
-      const recMime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-          ? 'video/webm;codecs=vp9'
-          : 'video/webm'
       mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType: recMime,
-        videoBitsPerSecond: 24_000_000,
+        mimeType: 'video/webm',
+        videoBitsPerSecond: 8_000_000,
       })
 
       mediaRecorder.ondataavailable = (e) => {
@@ -3121,18 +3104,6 @@ body.recording .storyboard-panel {
       cancelAnimationFrame(raf3d)
       raf3d = null
     }
-  }
-
-  function activatePreRendered() {
-    const sceneId = getSceneId()
-    const videoUrl = bg3dVideos[sceneId]
-    if (!videoUrl) return false
-    bg3dVideo.src = videoUrl
-    bg3dVideo.style.display = 'block'
-    bg3d.style.display = 'none'
-    bg3dVideo.play()
-    stop3DScene()
-    return true
   }
 
   function deactivatePreRendered() {
