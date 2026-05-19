@@ -978,7 +978,9 @@ body.recording .storyboard-panel {
 }
 
 .storyboard-overlay.visible {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .storyboard-overlay img {
@@ -986,6 +988,33 @@ body.recording .storyboard-panel {
   max-height: 90%;
   object-fit: contain;
   user-select: none;
+  animation: slideIn 0.4s ease;
+}
+
+/* Storyboard slideshow navigation dots */
+.sb-nav {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 20;
+}
+
+.sb-nav .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mm-text) 25%, transparent);
+  transition: background 0.2s, width 0.2s, border-radius 0.2s;
+  cursor: pointer;
+}
+
+.sb-nav .dot.active {
+  background: var(--accent);
+  width: 20px;
+  border-radius: 4px;
 }
 
 @keyframes sbFadeIn {
@@ -1498,7 +1527,7 @@ body.recording .storyboard-panel {
     <svg id="markmap"></svg>
     <div class="slide-container" id="slideContainer"></div>
     <div class="slide-nav" id="slideNav"></div>
-    <div class="storyboard-overlay" id="storyboardOverlayInner"></div>
+    <div class="storyboard-overlay" id="storyboardOverlayInner"><div class="sb-nav" id="sbNav"></div></div>
     <div class="wb-layer" id="wbLayer">
       <canvas id="wbCanvas"></canvas>
     </div>
@@ -1568,6 +1597,7 @@ body.recording .storyboard-panel {
   <input type="color" id="bgColor" value="#000000" title="背景色">
   <input type="file" id="videoFile" accept="video/*">
   <label class="file-label" id="videoFileLabel" for="videoFile">選擇影片</label>
+  <button class="file-label" id="videoUrlBtn" style="display:none">貼上網址</button>
   <div class="video-controls" id="videoControls">
     <button id="vcPlay" title="播放/暫停">▶</button>
     <input type="range" id="vcVolume" min="0" max="1" step="0.05" value="0.5">
@@ -1711,6 +1741,8 @@ body.recording .storyboard-panel {
   const sbFromAssets = document.getElementById('sbFromAssets')
   const sbFileInput = document.getElementById('sbFileInput')
   const storyboardOverlay = document.getElementById('storyboardOverlayInner')
+  const sbNav = document.getElementById('sbNav')
+  const videoUrlBtn = document.getElementById('videoUrlBtn')
   const videoControls = document.getElementById('videoControls')
   const vcPlay = document.getElementById('vcPlay')
   const vcVolume = document.getElementById('vcVolume')
@@ -2023,6 +2055,7 @@ body.recording .storyboard-panel {
     bg3d.style.display = source === '3d' ? 'block' : 'none'
     bgColor.style.display = source === 'solid' ? 'inline-block' : 'none'
     document.getElementById('videoFileLabel').style.display = source === 'upload' ? 'inline-block' : 'none'
+    videoUrlBtn.style.display = source === 'upload' ? 'inline-block' : 'none'
     videoControls.style.display = (source === 'upload' && bgVideo.src) ? 'inline-flex' : 'none'
     sceneSelect.style.display = source === '3d' ? 'inline-block' : 'none'
 
@@ -2201,7 +2234,7 @@ body.recording .storyboard-panel {
 
           // Draw storyboard overlay onto canvas if visible
           const sbImg = storyboardOverlay.querySelector('img')
-          if (sbImg && sbImg.naturalWidth && storyboardOverlay.classList.contains('visible')) {
+          if (sbImg && sbImg.complete && sbImg.naturalWidth && storyboardOverlay.classList.contains('visible')) {
             const paneRect = previewPane.getBoundingClientRect()
             const imgRect = sbImg.getBoundingClientRect()
             // Convert DOM position to canvas coordinates
@@ -2979,6 +3012,19 @@ body.recording .storyboard-panel {
       })
     })
 
+    // Click to open slideshow (edit bar)
+    sbBarThumbs.querySelectorAll('.sb-mini').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.classList.contains('sb-mini-del')) return
+        const idx = parseInt(el.dataset.index, 10)
+        if (activeStoryboard === idx) {
+          hideStoryboard()
+        } else {
+          showStoryboard(idx)
+        }
+      })
+    })
+
     // Drag-sort (edit bar)
     initDragSort()
 
@@ -2994,6 +3040,11 @@ body.recording .storyboard-panel {
     const sb = getStoryboards()
     if (index < 0 || index >= sb.length) return
     activeStoryboard = index
+
+    // Remove existing img (keep sbNav)
+    const oldImg = storyboardOverlay.querySelector('img')
+    if (oldImg) oldImg.remove()
+
     const img = document.createElement('img')
     img.src = sb[index].url || sb[index].dataUrl || ''
     img.style.position = 'absolute'
@@ -3002,29 +3053,59 @@ body.recording .storyboard-panel {
     img.style.transform = 'translate(-50%, -50%)'
     img.style.cursor = 'grab'
     img.draggable = false
-    storyboardOverlay.innerHTML = ''
-    storyboardOverlay.appendChild(img)
+    storyboardOverlay.insertBefore(img, sbNav)
     storyboardOverlay.classList.add('visible')
+
+    // Render navigation dots
+    sbNav.innerHTML = sb.map((_, i) =>
+      '<span class="dot' + (i === index ? ' active' : '') + '" data-sb-dot="' + i + '"></span>'
+    ).join('')
   }
 
   function hideStoryboard() {
     activeStoryboard = -1
     storyboardOverlay.classList.remove('visible')
-    storyboardOverlay.innerHTML = ''
+    const img = storyboardOverlay.querySelector('img')
+    if (img) img.remove()
+    sbNav.innerHTML = ''
   }
 
-  // Overlay: drag to move, click (no drag) to dismiss
+  // Navigation dot clicks
+  sbNav.addEventListener('click', (e) => {
+    const dot = e.target.closest('[data-sb-dot]')
+    if (!dot) return
+    e.stopPropagation()
+    showStoryboard(parseInt(dot.dataset.sbDot, 10))
+  })
+
+  // Overlay: click zones — left 30% = prev, right 30% = next, center = close; img = drag
   storyboardOverlay.addEventListener('mousedown', (e) => {
     const img = storyboardOverlay.querySelector('img')
-    if (!img || e.target !== img) {
-      hideStoryboard()
+
+    // Click on nav dot — handled by sbNav listener
+    if (e.target.closest('.sb-nav')) return
+
+    // Click on image — start drag
+    if (img && e.target === img) {
+      sbOverlayDragging = true
+      sbOverlayMoved = false
+      sbOverlayStart = { x: e.clientX, y: e.clientY }
+      img.style.cursor = 'grabbing'
+      e.preventDefault()
       return
     }
-    sbOverlayDragging = true
-    sbOverlayMoved = false
-    sbOverlayStart = { x: e.clientX, y: e.clientY }
-    img.style.cursor = 'grabbing'
-    e.preventDefault()
+
+    // Click on background — zone navigation
+    const rect = storyboardOverlay.getBoundingClientRect()
+    const relX = (e.clientX - rect.left) / rect.width
+    const sb = getStoryboards()
+    if (relX < 0.3 && activeStoryboard > 0) {
+      showStoryboard(activeStoryboard - 1)
+    } else if (relX > 0.7 && activeStoryboard < sb.length - 1) {
+      showStoryboard(activeStoryboard + 1)
+    } else {
+      hideStoryboard()
+    }
   })
 
   window.addEventListener('mousemove', (e) => {
@@ -3219,11 +3300,26 @@ body.recording .storyboard-panel {
   })
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isRecording) {
-      if (activeStoryboard >= 0) {
+    // Arrow keys for storyboard slideshow navigation (works in both edit and recording mode)
+    if (activeStoryboard >= 0 && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+      const sb = getStoryboards()
+      if (e.key === 'ArrowLeft' && activeStoryboard > 0) {
+        e.preventDefault()
+        showStoryboard(activeStoryboard - 1)
+        return
+      }
+      if (e.key === 'ArrowRight' && activeStoryboard < sb.length - 1) {
+        e.preventDefault()
+        showStoryboard(activeStoryboard + 1)
+        return
+      }
+      if (e.key === 'Escape') {
         hideStoryboard()
         return
       }
+    }
+
+    if (e.key === 'Escape' && isRecording) {
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         stopCapture()
       } else {
@@ -3262,6 +3358,83 @@ body.recording .storyboard-panel {
     vcTime.textContent = '0:00'
     refreshEditorPreview()
   })
+
+  // --- URL Video Import ---
+
+  videoUrlBtn.addEventListener('click', async () => {
+    const r = await Swal.fire({
+      title: '貼上影片網址',
+      input: 'url',
+      inputPlaceholder: 'https://youtube.com/watch?v=...',
+      showCancelButton: true,
+      confirmButtonText: '下載',
+      cancelButtonText: '取消',
+      ...swalDark,
+      inputValidator: (value) => {
+        if (!value) return '請輸入網址'
+        try { new URL(value) } catch { return '請輸入有效的 URL' }
+      },
+    })
+    if (!r.isConfirmed || !r.value) return
+    await downloadVideoFromUrl(r.value.trim())
+  })
+
+  async function downloadVideoFromUrl(url) {
+    let swalInstance = null
+    try {
+      swalInstance = Swal.fire({
+        title: '下載影片中…',
+        html: '正在送出請求',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        ...swalDark,
+        didOpen: () => Swal.showLoading(),
+      })
+
+      const result = await apiPost('/api/transcribe', { url })
+      const videoId = result.video_id || result.id
+      if (!videoId) throw new Error('未取得 video_id')
+
+      // Poll for download completion
+      const pollResult = await pollVideoStatus(videoId, (status) => {
+        Swal.update({ html: '狀態：' + status })
+      })
+
+      Swal.close()
+
+      const videoUrl = 'https://reelscript.isnowfriend.com/videos/' + pollResult.filename
+      bgVideo.src = videoUrl
+      bgVideo.volume = parseFloat(vcVolume.value)
+      bgVideo.load()
+      videoControls.style.display = 'inline-flex'
+      vcPlay.textContent = '▶'
+      vcTime.textContent = '0:00'
+      refreshEditorPreview()
+
+      appAlert('影片已載入', '完成', 'success')
+    } catch (err) {
+      Swal.close()
+      appAlert(err.message || '下載失敗', '錯誤', 'error')
+    }
+  }
+
+  async function pollVideoStatus(videoId, onStatus) {
+    const maxAttempts = 90 // 3 minutes max (90 * 2s)
+    for (let i = 0; i < maxAttempts; i++) {
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 2000))
+      const data = await apiGet('/api/transcribe/' + videoId)
+      const status = data.status || 'unknown'
+      if (onStatus) onStatus(status)
+      if (status !== 'downloading' && status !== 'pending' && status !== 'processing' && data.filename) {
+        return data
+      }
+      if (status === 'error' || status === 'failed') {
+        throw new Error('影片處理失敗')
+      }
+    }
+    throw new Error('下載逾時，請稍後再試')
+  }
 
   // --- Video Controls ---
 
@@ -3341,6 +3514,7 @@ body.recording .storyboard-panel {
       img.src = item.url || item.dataUrl || ''
       img.alt = '分鏡 ' + (i + 1)
       img.title = '分鏡 ' + (i + 1)
+      img.addEventListener('click', () => showStoryboard(i))
       epStoryboard.appendChild(img)
     })
 
