@@ -286,21 +286,112 @@ body {
   display: block;
 }
 
+/* Storyboard slide preview (PPT normal view) */
+.ep-slide-preview {
+  display: none;
+  position: relative;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+  aspect-ratio: 9/16;
+  max-height: 45vh;
+  width: auto;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ep-slide-preview.visible {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ep-slide-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  animation: slideIn 0.3s ease;
+}
+
+.ep-slide-preview .ep-nav {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+}
+
+.ep-slide-preview .ep-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: background 0.2s, width 0.2s, border-radius 0.2s;
+}
+
+.ep-slide-preview .ep-dot.active {
+  background: var(--accent);
+  width: 16px;
+  border-radius: 4px;
+}
+
+.ep-slide-preview .ep-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ep-slide-preview:hover .ep-arrow {
+  opacity: 1;
+}
+
+.ep-slide-preview .ep-arrow.left { left: 6px; }
+.ep-slide-preview .ep-arrow.right { right: 6px; }
+
+.ep-slide-label {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
 .ep-storyboard {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 6px;
 }
 
 .ep-storyboard img {
   width: 100%;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   cursor: pointer;
+  transition: border-color 0.15s;
 }
 
 .ep-storyboard img:hover {
   border-color: var(--accent);
+}
+
+.ep-storyboard img.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .ep-empty {
@@ -1521,6 +1612,8 @@ body.recording .storyboard-panel {
       <div class="ep-video-wrap" id="epVideoWrap" style="display:none">
         <video id="epVideo" controls></video>
       </div>
+      <div class="ep-slide-preview" id="epSlidePreview"></div>
+      <div class="ep-slide-label" id="epSlideLabel" style="display:none"></div>
       <div class="ep-storyboard" id="epStoryboard"></div>
       <div class="ep-empty" id="epEmpty">尚無分鏡或影片</div>
     </div>
@@ -1753,6 +1846,8 @@ body.recording .storyboard-panel {
   const editorPreview = document.getElementById('editorPreview')
   const epVideoWrap = document.getElementById('epVideoWrap')
   const epVideo = document.getElementById('epVideo')
+  const epSlidePreview = document.getElementById('epSlidePreview')
+  const epSlideLabel = document.getElementById('epSlideLabel')
   const epStoryboard = document.getElementById('epStoryboard')
   const epEmpty = document.getElementById('epEmpty')
 
@@ -3490,6 +3585,75 @@ body.recording .storyboard-panel {
     })
   })
 
+  let epSelectedIndex = 0 // currently selected storyboard in editor preview
+
+  function selectEpSlide(index) {
+    const sb = getStoryboards()
+    if (sb.length === 0) return
+    epSelectedIndex = Math.max(0, Math.min(index, sb.length - 1))
+    renderEpSlidePreview(sb)
+  }
+
+  function renderEpSlidePreview(sb) {
+    if (sb.length === 0) {
+      epSlidePreview.classList.remove('visible')
+      epSlideLabel.style.display = 'none'
+      return
+    }
+
+    const idx = Math.min(epSelectedIndex, sb.length - 1)
+    epSelectedIndex = idx
+
+    // Build slide preview content
+    const item = sb[idx]
+    const img = document.createElement('img')
+    img.src = item.url || item.dataUrl || ''
+    img.alt = '分鏡 ' + (idx + 1)
+
+    // Navigation dots
+    const nav = document.createElement('div')
+    nav.className = 'ep-nav'
+    sb.forEach((_, i) => {
+      const dot = document.createElement('span')
+      dot.className = 'ep-dot' + (i === idx ? ' active' : '')
+      dot.addEventListener('click', (e) => { e.stopPropagation(); selectEpSlide(i) })
+      nav.appendChild(dot)
+    })
+
+    // Arrow buttons
+    const leftBtn = document.createElement('button')
+    leftBtn.className = 'ep-arrow left'
+    leftBtn.textContent = '\u2039'
+    leftBtn.style.display = idx > 0 ? '' : 'none'
+    leftBtn.addEventListener('click', (e) => { e.stopPropagation(); selectEpSlide(idx - 1) })
+
+    const rightBtn = document.createElement('button')
+    rightBtn.className = 'ep-arrow right'
+    rightBtn.textContent = '\u203A'
+    rightBtn.style.display = idx < sb.length - 1 ? '' : 'none'
+    rightBtn.addEventListener('click', (e) => { e.stopPropagation(); selectEpSlide(idx + 1) })
+
+    epSlidePreview.innerHTML = ''
+    epSlidePreview.appendChild(img)
+    epSlidePreview.appendChild(leftBtn)
+    epSlidePreview.appendChild(rightBtn)
+    epSlidePreview.appendChild(nav)
+    epSlidePreview.classList.add('visible')
+
+    // Click large image → open fullscreen overlay
+    img.style.cursor = 'pointer'
+    img.addEventListener('click', () => showStoryboard(idx))
+
+    // Label
+    epSlideLabel.textContent = (idx + 1) + ' / ' + sb.length
+    epSlideLabel.style.display = ''
+
+    // Update thumbnail active state
+    epStoryboard.querySelectorAll('img').forEach((thumb, i) => {
+      thumb.classList.toggle('active', i === idx)
+    })
+  }
+
   function refreshEditorPreview() {
     // Skip if preview tab is not visible
     if (editorPreview.style.display === 'none') return
@@ -3509,16 +3673,20 @@ body.recording .storyboard-panel {
       epVideoWrap.style.display = 'none'
     }
 
-    // Storyboard thumbnails (use DOM API to avoid XSS)
+    // Storyboard thumbnails grid
     epStoryboard.innerHTML = ''
     sb.forEach((item, i) => {
       const img = document.createElement('img')
       img.src = item.url || item.dataUrl || ''
       img.alt = '分鏡 ' + (i + 1)
       img.title = '分鏡 ' + (i + 1)
-      img.addEventListener('click', () => showStoryboard(i))
+      if (i === epSelectedIndex) img.classList.add('active')
+      img.addEventListener('click', () => selectEpSlide(i))
       epStoryboard.appendChild(img)
     })
+
+    // Slide preview (large image above grid)
+    renderEpSlidePreview(sb)
 
     // Empty state
     epEmpty.style.display = (!hasVideo && sb.length === 0) ? '' : 'none'
