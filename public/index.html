@@ -9,7 +9,6 @@
 <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.js"></script>
 <style>
 :root {
   --bg: #121212;
@@ -2465,6 +2464,10 @@ body.recording .storyboard-panel {
       // Switch to pre-rendered 3D video if available (frees GPU)
       if (getSelectedSource() === '3d' && preRenderedBlob) {
         activatePreRendered()
+      } else if (getSelectedSource() === '3d' && renderer3d) {
+        // Throttle live 3D to free GPU for capture draw loop
+        throttle3D = true
+        renderer3d.setPixelRatio(1)
       }
 
       // 1. Get display stream (current tab) — include system audio
@@ -2595,19 +2598,11 @@ body.recording .storyboard-panel {
       }
 
       mediaRecorder.onstop = () => {
-        const rawBlob = new Blob(recordedChunks, { type: 'video/webm' })
+        const blob = new Blob(recordedChunks, { type: 'video/webm' })
         const duration = Date.now() - recStartTime
         const topicLabel = (topics[currentIndex] || {}).name || 'recording'
         const filename = topicLabel + '_' + new Date().toISOString().slice(0, 10) + '.webm'
-
-        // Fix webm duration metadata so seekbar works correctly
-        if (typeof ysFixWebmDuration === 'function') {
-          ysFixWebmDuration(rawBlob, duration, (fixedBlob) => {
-            showPostRecordModal(fixedBlob, filename)
-          })
-        } else {
-          showPostRecordModal(rawBlob, filename)
-        }
+        showPostRecordModal(blob, filename, duration)
         cleanupCapture()
       }
 
@@ -2654,6 +2649,8 @@ body.recording .storyboard-panel {
     recTickInterval = null
     recTimeSpan.textContent = '00:00'
     // Restore live 3D after recording ends
+    throttle3D = false
+    if (renderer3d) renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
     if (getSelectedSource() === '3d' && bg3dVideo.style.display !== 'none') {
       deactivatePreRendered()
     }
@@ -3081,9 +3078,19 @@ body.recording .storyboard-panel {
     return { chunkZ, mesh }
   }
 
+  let throttle3D = false
+  let lastRender3D = 0
+
   function animate3D() {
     if (!renderer3d) return
     raf3d = requestAnimationFrame(animate3D)
+
+    // Throttle to ~15fps during recording to free GPU for capture loop
+    if (throttle3D) {
+      const now = performance.now()
+      if (now - lastRender3D < 64) return
+      lastRender3D = now
+    }
 
     const cfg = SCENES[getSceneId()]
     cameraTime += 0.016
@@ -4275,7 +4282,7 @@ body.recording .storyboard-panel {
     return m + ':' + s
   }
 
-  function showPostRecordModal(blob, filename) {
+  function showPostRecordModal(blob, filename, duration) {
     const blobUrl = URL.createObjectURL(blob)
 
     const modal = document.createElement('div')
@@ -4297,6 +4304,17 @@ body.recording .storyboard-panel {
 
     const video = modal.querySelector('.sub-video-preview')
     video.src = blobUrl
+
+    // Fix WebM seekbar — force browser to discover full duration
+    video.addEventListener('loadedmetadata', function() {
+      if (video.duration === Infinity || isNaN(video.duration)) {
+        video.currentTime = 1e101
+        video.addEventListener('timeupdate', function seekFix() {
+          video.removeEventListener('timeupdate', seekFix)
+          video.currentTime = 0
+        })
+      }
+    })
 
     // Close button
     modal.querySelector('.sub-close').addEventListener('click', function() {
