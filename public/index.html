@@ -634,9 +634,32 @@ body.recording .teleprompter {
   object-fit: cover;
 }
 
-.bg-layer .solid-bg {
-  width: 100%;
-  height: 100%;
+.bg-layer .slides-bg {
+  width: 100%; height: 100%;
+  display: none;
+  position: relative;
+}
+.bg-layer .slides-bg img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  position: absolute; inset: 0;
+}
+.bg-layer .slides-bg .slides-nav {
+  position: absolute;
+  bottom: 8px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 5px; z-index: 2;
+}
+.bg-layer .slides-bg .slides-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: background 0.2s, width 0.2s, border-radius 0.2s;
+}
+.bg-layer .slides-bg .slides-dot.active {
+  background: var(--accent);
+  width: 16px; border-radius: 4px;
 }
 
 .bg-layer #bg3d {
@@ -1095,7 +1118,12 @@ body.recording .storyboard-panel {
   max-height: 90%;
   object-fit: contain;
   user-select: none;
-  animation: slideIn 0.4s ease;
+  animation: sbSlideIn 0.35s ease;
+}
+
+@keyframes sbSlideIn {
+  from { opacity: 0; scale: 0.92; }
+  to { opacity: 1; scale: 1; }
 }
 
 /* Storyboard slideshow navigation dots */
@@ -1582,11 +1610,11 @@ body.recording .storyboard-panel {
 
 /* SweetAlert2 compact overrides */
 .swal2-container { align-items: center !important; }
-.swal2-popup { padding: 1.5em 2em 1.2em !important; font-size: 14px !important; border-radius: 12px !important; }
+.swal2-popup { padding: 1.5em 2em 0.8em !important; font-size: 14px !important; border-radius: 12px !important; }
 .swal2-icon { transform: scale(0.65); margin: 0 auto 0.2em !important; }
 .swal2-title { font-size: 1.1em !important; margin: 0 !important; padding: 0 !important; }
 .swal2-html-container { font-size: 0.9em !important; margin: 0.5em 0 0 !important; padding: 0 !important; }
-.swal2-actions { margin: 1em 0 0 !important; padding: 0 !important; }
+.swal2-actions { margin: 0.8em 0 0 !important; padding: 0 !important; }
 .swal2-styled { padding: 0.45em 1.8em !important; font-size: 13px !important; border-radius: 6px !important; }
 .swal2-input, .swal2-textarea { margin: 0.8em 0 0 !important; font-size: 13px !important; }
 .swal2-validation-message { margin: 0.4em 0 0 !important; padding: 0.3em 0.8em !important; font-size: 12px !important; }
@@ -1644,7 +1672,7 @@ body.recording .storyboard-panel {
     </div>
   </div>
   <div class="bg-layer" id="bgLayer">
-    <div class="solid-bg" id="solidBg"></div>
+    <div class="slides-bg" id="slidesBg"></div>
     <video id="bgVideo" loop playsinline></video>
     <video id="webcamVideo" autoplay muted playsinline></video>
     <canvas id="bg3d"></canvas>
@@ -1695,7 +1723,7 @@ body.recording .storyboard-panel {
   <span style="font-size:13px;color:var(--text-muted)">底圖：</span>
   <div class="source-group">
     <label><input type="radio" name="bgSource" value="3d" checked> 3D場景</label>
-    <label><input type="radio" name="bgSource" value="solid"> 純色</label>
+    <label><input type="radio" name="bgSource" value="slides"> 簡報</label>
     <label><input type="radio" name="bgSource" value="upload"> 上傳影片</label>
     <label><input type="radio" name="bgSource" value="webcam"> Webcam</label>
   </div>
@@ -1811,7 +1839,7 @@ body.recording .storyboard-panel {
   const btnDelete = document.getElementById('btnDelete')
   const btnRecord = document.getElementById('btnRecord')
   const bgLayer = document.getElementById('bgLayer')
-  const solidBg = document.getElementById('solidBg')
+  const slidesBg = document.getElementById('slidesBg')
   const bgVideo = document.getElementById('bgVideo')
   const webcamVideo = document.getElementById('webcamVideo')
   const bgColor = document.getElementById('bgColor')
@@ -1882,6 +1910,7 @@ body.recording .storyboard-panel {
   let preRenderedBlob = null
   let preRenderRecorder = null
   let activeStoryboard = -1 // index of currently shown storyboard, -1 = none
+  let slidesIndex = 0 // current slide in "簡報" background mode
 
   // --- Mindmap Theme ---
 
@@ -2159,16 +2188,16 @@ body.recording .storyboard-panel {
     for (const r of sourceRadios) {
       if (r.checked) return r.value
     }
-    return 'solid'
+    return '3d'
   }
 
   function updateBgVisibility() {
     const source = getSelectedSource()
-    solidBg.style.display = source === 'solid' ? 'block' : 'none'
+    slidesBg.style.display = source === 'slides' ? 'block' : 'none'
     bgVideo.style.display = source === 'upload' ? 'block' : 'none'
     webcamVideo.style.display = source === 'webcam' ? 'block' : 'none'
     bg3d.style.display = source === '3d' ? 'block' : 'none'
-    bgColor.style.display = source === 'solid' ? 'inline-block' : 'none'
+    bgColor.style.display = 'none'
     document.getElementById('videoFileLabel').style.display = source === 'upload' ? 'inline-block' : 'none'
     videoUrlBtn.style.display = source === 'upload' ? 'inline-block' : 'none'
     videoControls.style.display = (source === 'upload' && bgVideo.src) ? 'inline-flex' : 'none'
@@ -2189,7 +2218,37 @@ body.recording .storyboard-panel {
       stop3DScene()
     }
 
-    solidBg.style.backgroundColor = bgColor.value
+    if (source === 'slides') {
+      renderSlidesBg()
+    }
+  }
+
+  function renderSlidesBg() {
+    const sb = getStoryboards()
+    slidesBg.innerHTML = ''
+    if (sb.length === 0) return
+
+    slidesIndex = Math.max(0, Math.min(slidesIndex, sb.length - 1))
+
+    const img = document.createElement('img')
+    img.src = sb[slidesIndex].url || sb[slidesIndex].dataUrl || ''
+    img.alt = '簡報 ' + (slidesIndex + 1)
+    slidesBg.appendChild(img)
+
+    if (sb.length > 1) {
+      const nav = document.createElement('div')
+      nav.className = 'slides-nav'
+      sb.forEach((_, i) => {
+        const dot = document.createElement('span')
+        dot.className = 'slides-dot' + (i === slidesIndex ? ' active' : '')
+        dot.addEventListener('click', () => {
+          slidesIndex = i
+          renderSlidesBg()
+        })
+        nav.appendChild(dot)
+      })
+      slidesBg.appendChild(nav)
+    }
   }
 
   function startWebcam() {
@@ -3151,6 +3210,11 @@ body.recording .storyboard-panel {
 
     // Sync editor preview tab
     refreshEditorPreview()
+
+    // Sync slides background if active
+    if (getSelectedSource() === 'slides') {
+      renderSlidesBg()
+    }
   }
 
   let sbOverlayDragging = false
@@ -3168,10 +3232,6 @@ body.recording .storyboard-panel {
 
     const img = document.createElement('img')
     img.src = sb[index].url || sb[index].dataUrl || ''
-    img.style.position = 'absolute'
-    img.style.left = '50%'
-    img.style.top = '50%'
-    img.style.transform = 'translate(-50%, -50%)'
     img.style.cursor = 'grab'
     img.draggable = false
     storyboardOverlay.insertBefore(img, sbNav)
@@ -3211,6 +3271,13 @@ body.recording .storyboard-panel {
       sbOverlayDragging = true
       sbOverlayMoved = false
       sbOverlayStart = { x: e.clientX, y: e.clientY }
+      // Switch to absolute positioning for drag
+      const rect = img.getBoundingClientRect()
+      const overlayRect = storyboardOverlay.getBoundingClientRect()
+      img.style.position = 'absolute'
+      img.style.left = ((rect.left + rect.width / 2 - overlayRect.left) / overlayRect.width * 100) + '%'
+      img.style.top = ((rect.top + rect.height / 2 - overlayRect.top) / overlayRect.height * 100) + '%'
+      img.style.transform = 'translate(-50%, -50%)'
       img.style.cursor = 'grabbing'
       e.preventDefault()
       return
@@ -3511,10 +3578,6 @@ body.recording .storyboard-panel {
 
   sourceRadios.forEach(r => {
     r.addEventListener('change', updateBgVisibility)
-  })
-
-  bgColor.addEventListener('input', () => {
-    solidBg.style.backgroundColor = bgColor.value
   })
 
   videoFile.addEventListener('change', (e) => {
