@@ -755,6 +755,38 @@ body.recording.swapped .bg-layer { order: 1; }
   outline: none;
 }
 
+.rec-audio-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.rec-audio-label {
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+}
+.rec-audio-controls select {
+  width: 100%;
+  max-width: 120px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(30,30,30,0.8);
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+  outline: none;
+}
+.rec-audio-controls input[type="range"] {
+  width: 100%;
+  max-width: 120px;
+  height: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* Markmap styling */
 .preview-pane svg#markmap {
   background: var(--mm-bg);
@@ -1738,6 +1770,11 @@ body.recording .storyboard-panel {
       <option value="webcam">Webcam</option>
     </select>
   </div>
+  <div class="rec-audio-controls">
+    <label class="rec-audio-label">&#127908;</label>
+    <select id="micSelect"><option value="">無麥克風</option></select>
+    <input type="range" id="micGain" min="0" max="3" step="0.1" value="1.5" title="麥克風音量">
+  </div>
 </div>
 <div class="draw-tools" id="drawTools">
   <button id="dtPen" title="畫筆">&#9998;</button>
@@ -1897,6 +1934,8 @@ body.recording .storyboard-panel {
   const splitSelect = document.getElementById('splitSelect')
   const swapBtn = document.getElementById('swapBtn')
   const recBgSource = document.getElementById('recBgSource')
+  const micSelect = document.getElementById('micSelect')
+  const micGainSlider = document.getElementById('micGain')
   const recBtn = document.getElementById('recBtn')
   const recTimer = document.getElementById('recTimer')
   const recTimeSpan = document.getElementById('recTime')
@@ -2332,6 +2371,7 @@ body.recording .storyboard-panel {
     bgLayer.style.display = 'flex'
     recBgSource.value = getSelectedSource()
     updateBgVisibility()
+    enumerateMics()
     updateRenderMode()
 
     if (getSelectedSource() === 'upload' && bgVideo.src) {
@@ -2399,6 +2439,27 @@ body.recording .storyboard-panel {
   let displayStream = null
   let captureAudioCtx = null
 
+  async function enumerateMics() {
+    try {
+      // Need permission first to get device labels
+      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      tempStream.getTracks().forEach(t => t.stop())
+
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const audioInputs = devices.filter(d => d.kind === 'audioinput')
+      micSelect.innerHTML = '<option value="">不使用麥克風</option>' +
+        audioInputs.map(d =>
+          '<option value="' + d.deviceId + '">' + (d.label || '麥克風 ' + d.deviceId.slice(0, 4)) + '</option>'
+        ).join('')
+      // Auto-select first real mic
+      if (audioInputs.length > 0) {
+        micSelect.value = audioInputs[0].deviceId
+      }
+    } catch (e) {
+      micSelect.innerHTML = '<option value="">麥克風權限被拒</option>'
+    }
+  }
+
   async function startCapture() {
     try {
       // Switch to pre-rendered 3D video if available (frees GPU)
@@ -2413,10 +2474,17 @@ body.recording .storyboard-panel {
         preferCurrentTab: true
       })
 
-      // 2. Get microphone
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      } catch (e) {
+      // 2. Get microphone (use selected device)
+      const selectedMicId = micSelect.value
+      if (selectedMicId) {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: { exact: selectedMicId } }
+          })
+        } catch (e) {
+          micStream = null
+        }
+      } else {
         micStream = null
       }
 
@@ -2486,17 +2554,24 @@ body.recording .storyboard-panel {
       const canvasStream = captureCanvas.captureStream(30)
       const tracks = [...canvasStream.getVideoTracks()]
 
-      // Merge system audio + mic audio via AudioContext
+      // Merge system audio + mic audio via AudioContext with gain control
       const systemAudioTracks = displayStream.getAudioTracks()
       const micAudioTracks = micStream ? micStream.getAudioTracks() : []
       if (systemAudioTracks.length > 0 || micAudioTracks.length > 0) {
         const audioCtx = new AudioContext()
         const dest = audioCtx.createMediaStreamDestination()
         if (systemAudioTracks.length > 0) {
-          audioCtx.createMediaStreamSource(new MediaStream(systemAudioTracks)).connect(dest)
+          const sysSource = audioCtx.createMediaStreamSource(new MediaStream(systemAudioTracks))
+          sysSource.connect(dest)
         }
         if (micAudioTracks.length > 0) {
-          audioCtx.createMediaStreamSource(new MediaStream(micAudioTracks)).connect(dest)
+          const micSource = audioCtx.createMediaStreamSource(new MediaStream(micAudioTracks))
+          const micGainNode = audioCtx.createGain()
+          micGainNode.gain.value = parseFloat(micGainSlider.value)
+          micSource.connect(micGainNode)
+          micGainNode.connect(dest)
+          // Live adjust mic gain
+          micGainSlider.oninput = () => { micGainNode.gain.value = parseFloat(micGainSlider.value) }
         }
         tracks.push(...dest.stream.getAudioTracks())
         captureAudioCtx = audioCtx
