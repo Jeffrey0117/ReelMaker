@@ -1445,12 +1445,13 @@ body.recording .storyboard-panel {
 }
 
 /* SweetAlert2 compact overrides */
-.swal2-popup { padding: 1.2em 1.5em !important; font-size: 14px !important; }
-.swal2-icon { transform: scale(0.7); margin-bottom: 0.3em !important; }
-.swal2-title { font-size: 1.15em !important; }
-.swal2-html-container { font-size: 0.95em !important; margin-top: 0.3em !important; }
-.swal2-actions { margin-top: 0.8em !important; }
-.swal2-styled { padding: 0.5em 1.8em !important; font-size: 13px !important; }
+.swal2-container { align-items: center !important; }
+.swal2-popup { padding: 1.5em 2em 1.2em !important; font-size: 14px !important; border-radius: 12px !important; }
+.swal2-icon { transform: scale(0.65); margin: 0 auto 0.2em !important; }
+.swal2-title { font-size: 1.1em !important; margin: 0 !important; padding: 0 !important; }
+.swal2-html-container { font-size: 0.9em !important; margin: 0.5em 0 0 !important; padding: 0 !important; }
+.swal2-actions { margin: 1em 0 0 !important; padding: 0 !important; }
+.swal2-styled { padding: 0.45em 1.8em !important; font-size: 13px !important; border-radius: 6px !important; }
 </style>
 </head>
 <body>
@@ -2177,7 +2178,7 @@ body.recording .storyboard-panel {
         captureVideo.onloadedmetadata = resolve
       })
 
-      // 5. Draw loop — crop center 9:16 from tab capture
+      // 5. Draw loop — crop center 9:16 from tab capture + storyboard overlay
       function drawFrame() {
         const srcW = captureVideo.videoWidth
         const srcH = captureVideo.videoHeight
@@ -2186,19 +2187,37 @@ body.recording .storyboard-panel {
           const srcRatio = srcW / srcH
           let cropX, cropY, cropW, cropH
           if (srcRatio > targetRatio) {
-            // Source is wider — crop sides
             cropH = srcH
             cropW = srcH * targetRatio
             cropX = (srcW - cropW) / 2
             cropY = 0
           } else {
-            // Source is taller — crop top/bottom
             cropW = srcW
             cropH = srcW / targetRatio
             cropX = 0
             cropY = (srcH - cropH) / 2
           }
           captureCtx.drawImage(captureVideo, cropX, cropY, cropW, cropH, 0, 0, 1080, 1920)
+
+          // Draw storyboard overlay onto canvas if visible
+          const sbImg = storyboardOverlay.querySelector('img')
+          if (sbImg && sbImg.naturalWidth && storyboardOverlay.classList.contains('visible')) {
+            const paneRect = previewPane.getBoundingClientRect()
+            const imgRect = sbImg.getBoundingClientRect()
+            // Convert DOM position to canvas coordinates
+            const relX = (imgRect.left + imgRect.width / 2 - paneRect.left) / paneRect.width
+            const relY = (imgRect.top + imgRect.height / 2 - paneRect.top) / paneRect.height
+            // Scale image to fit canvas proportionally
+            const scale = Math.min(
+              (1080 * 0.9) / sbImg.naturalWidth,
+              (1920 * 0.9) / sbImg.naturalHeight
+            )
+            const drawW = sbImg.naturalWidth * scale
+            const drawH = sbImg.naturalHeight * scale
+            const drawX = relX * 1080 - drawW / 2
+            const drawY = relY * 1920 - drawH / 2
+            captureCtx.drawImage(sbImg, drawX, drawY, drawW, drawH)
+          }
         }
         captureRaf = requestAnimationFrame(drawFrame)
       }
@@ -2215,7 +2234,8 @@ body.recording .storyboard-panel {
       mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
           ? 'video/webm;codecs=vp9'
-          : 'video/webm'
+          : 'video/webm',
+        videoBitsPerSecond: 8_000_000,
       })
 
       mediaRecorder.ondataavailable = (e) => {
