@@ -9,3 +9,8 @@ data/*.db-shm
 data/*.db-wal
 *.log
 .env
+.claude/
+tmp_*
+*tmp_resp*
+*tmp_response*
+PLAN-*.md

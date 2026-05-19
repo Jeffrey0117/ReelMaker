@@ -1,5 +1,11 @@
 {
   "name": "reelmaker",
   "version": "1.0.0",
-  "description": "Short-form video knowledge visualization tool"
+  "description": "Browser-based video knowledge visualization tool with storyboard overlays and recording",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["video", "storyboard", "recording", "presentation", "knowledge"],
+  "license": "MIT"
 }

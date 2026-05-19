@@ -318,6 +318,8 @@ body {
   object-fit: contain;
   border-radius: 6px;
   animation: slideIn 0.3s ease;
+  transform-origin: center center;
+  transition: transform 0.15s ease;
 }
 
 .ep-slide-preview .ep-nav {
@@ -3657,6 +3659,37 @@ body.recording .storyboard-panel {
     // Click large image → open fullscreen overlay
     img.style.cursor = 'pointer'
     img.addEventListener('click', () => showStoryboard(idx))
+
+    // Scroll wheel zoom on preview image
+    let epZoom = 1
+    epSlidePreview.addEventListener('wheel', (e) => {
+      e.preventDefault()
+      epZoom = Math.min(5, Math.max(1, epZoom + (e.deltaY < 0 ? 0.2 : -0.2)))
+      img.style.transform = epZoom === 1 ? '' : `scale(${epZoom})`
+      img.style.cursor = epZoom > 1 ? 'grab' : 'pointer'
+    }, { passive: false })
+
+    // Pan when zoomed
+    let epPanning = false, epPanX = 0, epPanY = 0, epStartX, epStartY
+    img.addEventListener('mousedown', (e) => {
+      if (epZoom <= 1) return
+      e.preventDefault()
+      epPanning = true
+      epStartX = e.clientX - epPanX
+      epStartY = e.clientY - epPanY
+      img.style.cursor = 'grabbing'
+    })
+    window.addEventListener('mousemove', (e) => {
+      if (!epPanning) return
+      epPanX = e.clientX - epStartX
+      epPanY = e.clientY - epStartY
+      img.style.transform = `scale(${epZoom}) translate(${epPanX / epZoom}px, ${epPanY / epZoom}px)`
+    })
+    window.addEventListener('mouseup', () => {
+      if (!epPanning) return
+      epPanning = false
+      img.style.cursor = epZoom > 1 ? 'grab' : 'pointer'
+    })
 
     // Label
     epSlideLabel.textContent = (idx + 1) + ' / ' + sb.length
