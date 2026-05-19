@@ -4250,43 +4250,46 @@ body.recording .storyboard-panel {
   }
 
   async function startSubtitleFlow(modal, blob, blobUrl, filename) {
-    const content = modal.querySelector('.sub-modal-content')
+    var VID_CAPTIONS_URL = 'http://localhost:3005'
+    var content = modal.querySelector('.sub-modal-content')
     content.innerHTML =
       '<div class="sub-progress">' +
         '<div class="sub-spinner"></div>' +
-        '<div>正在上傳影片...</div>' +
+        '<div>正在傳送到字幕編輯器...</div>' +
       '</div>'
 
     try {
-      // 1. Upload recording
-      const formData = new FormData()
-      formData.append('file', blob, filename)
-      const uploadRes = await fetch('/api/recordings', { method: 'POST', body: formData })
-      const uploadData = await uploadRes.json()
+      // Upload video to vid-captions server
+      var formData = new FormData()
+      formData.append('video', blob, filename)
+      var uploadRes = await fetch(VID_CAPTIONS_URL + '/api/upload-video', {
+        method: 'POST',
+        body: formData,
+      })
+      var uploadData = await uploadRes.json()
 
-      if (!uploadData.url) {
-        content.innerHTML = '<div class="sub-progress" style="color:#e55">上傳失敗，請重試</div>'
+      if (!uploadData.success) {
+        content.innerHTML = '<div class="sub-progress" style="color:#e55">上傳失敗: ' + (uploadData.error || '未知錯誤') + '</div>'
         return
       }
 
-      // 2. Start transcription
-      content.querySelector('.sub-progress div:last-child').textContent = '正在轉錄字幕...'
-      const transcribeRes = await apiPost('/api/transcribe', { url: uploadData.url })
+      // Open vid-captions editor with the video
+      var videoPath = '/temp/' + uploadData.videoPath
+      var editorUrl = VID_CAPTIONS_URL + '/editor?import=' + encodeURIComponent(videoPath) + '&name=' + encodeURIComponent(filename)
+      window.open(editorUrl, '_blank')
 
-      if (!transcribeRes.id) {
-        content.innerHTML = '<div class="sub-progress" style="color:#e55">轉錄請求失敗</div>'
-        return
-      }
-
-      // 3. Poll for completion
-      const segments = await pollTranscription(transcribeRes.id, content)
-      if (!segments) return
-
-      // 4. Show editor
-      showSubtitleEditor(modal, blobUrl, filename, segments)
+      content.innerHTML =
+        '<div class="sub-progress" style="color:var(--accent)">' +
+          '<div style="font-size:1.5em;margin-bottom:8px">&#10003;</div>' +
+          '<div>已在新分頁開啟字幕編輯器</div>' +
+        '</div>'
 
     } catch (err) {
-      content.innerHTML = '<div class="sub-progress" style="color:#e55">發生錯誤: ' + (err.message || '未知錯誤') + '</div>'
+      content.innerHTML =
+        '<div class="sub-progress" style="color:#e55">' +
+          '連線字幕編輯器失敗<br>' +
+          '<span style="font-size:0.85em;opacity:0.7">請確認 vid-captions 正在運行 (port 3005)</span>' +
+        '</div>'
     }
   }
 
