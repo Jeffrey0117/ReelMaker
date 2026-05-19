@@ -845,7 +845,7 @@ async function handleRequest(req, res) {
           : `http://127.0.0.1:${port}${videoUrl}`
 
         const result = await gw.call('reelscript_process_video', { url: absoluteUrl })
-        return jsonRes(res, 200, result)
+        return jsonRes(res, 200, result.data || result)
       } catch (err) {
         return jsonRes(res, 500, { error: 'Transcription failed: ' + err.message })
       }
@@ -859,7 +859,7 @@ async function handleRequest(req, res) {
       const videoId = transcribeStatusMatch[1]
       try {
         const result = await gw.call('reelscript_get_video', { video_id: videoId })
-        return jsonRes(res, 200, result)
+        return jsonRes(res, 200, result.data || result)
       } catch (err) {
         return jsonRes(res, 500, { error: err.message })
       }
@@ -1102,7 +1102,9 @@ async function handleRequest(req, res) {
       }
       const ext = path.extname(filePath).toLowerCase()
       const contentType = MIME[ext] || 'application/octet-stream'
-      res.writeHead(200, { 'Content-Type': contentType })
+      const headers = { 'Content-Type': contentType }
+      if (ext === '.html') headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+      res.writeHead(200, headers)
       res.end(fileData)
     })
   } catch (err) {

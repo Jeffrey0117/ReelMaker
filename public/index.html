@@ -1664,15 +1664,29 @@ body.recording .storyboard-panel {
 }
 
 /* SweetAlert2 compact overrides */
-.swal2-container { align-items: center !important; }
-.swal2-popup { padding: 1.5em 2em 0.8em !important; font-size: 14px !important; border-radius: 12px !important; }
-.swal2-icon { transform: scale(0.65); margin: 0 auto 0.2em !important; }
+html.swal2-height-auto, body.swal2-height-auto {
+  height: 100vh !important;
+}
+.swal2-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.swal2-popup {
+  padding: 0.6em 1.5em 0.4em !important;
+  font-size: 14px !important;
+  border-radius: 12px !important;
+}
+.swal2-icon { width: 2em !important; height: 2em !important; min-width: auto !important; margin: 0 auto !important; border-width: 2px !important; font-size: 1.2em !important; line-height: 2em !important; }
+.swal2-icon .swal2-icon-content { font-size: 1.2em !important; }
 .swal2-title { font-size: 1.1em !important; margin: 0 !important; padding: 0 !important; }
-.swal2-html-container { font-size: 0.9em !important; margin: 0.5em 0 0 !important; padding: 0 !important; }
-.swal2-actions { margin: 0.8em 0 0 !important; padding: 0 !important; }
-.swal2-styled { padding: 0.45em 1.8em !important; font-size: 13px !important; border-radius: 6px !important; }
-.swal2-input, .swal2-textarea { margin: 0.8em 0 0 !important; font-size: 13px !important; }
-.swal2-validation-message { margin: 0.4em 0 0 !important; padding: 0.3em 0.8em !important; font-size: 12px !important; }
+.swal2-html-container { font-size: 0.9em !important; margin: 0.4em 0 0 !important; padding: 0 !important; }
+.swal2-actions { margin: 0.6em 0 0 !important; padding: 0 !important; }
+.swal2-styled { padding: 0.45em 1.8em !important; font-size: 13px !important; border-radius: 6px !important; margin: 0.2em !important; }
+.swal2-input, .swal2-textarea { margin: 0.5em 0 0 !important; font-size: 13px !important; }
+.swal2-validation-message { margin: 0.3em 0 0 !important; padding: 0.3em 0.8em !important; font-size: 12px !important; }
+.swal2-footer { display: none !important; }
+.swal2-timer-progress-bar-container { display: none !important; }
 </style>
 </head>
 <body>
@@ -1832,6 +1846,42 @@ body.recording .storyboard-panel {
   'use strict'
 
   // --- Modal helpers (SweetAlert2) ---
+
+  // Monkey-patch Swal.fire — 每個彈窗 didOpen 結尾自動套 compact style
+  function _swalCompact(popup) {
+    popup.style.padding = '6px 21px 5px'
+    const icon = popup.querySelector('.swal2-icon')
+    if (icon) {
+      icon.style.width = '2em'
+      icon.style.height = '2em'
+      icon.style.minWidth = 'auto'
+      icon.style.margin = '0 auto'
+      icon.style.borderWidth = '2px'
+      icon.style.fontSize = '1.2em'
+      icon.style.lineHeight = '2em'
+      const inner = icon.querySelector('.swal2-icon-content')
+      if (inner) inner.style.fontSize = '1.2em'
+    }
+    const title = popup.querySelector('.swal2-title')
+    if (title) { title.style.margin = '6px 0 0'; title.style.padding = '0' }
+    const html = popup.querySelector('.swal2-html-container')
+    if (html) { html.style.margin = '4px 0 0'; html.style.padding = '0' }
+    const actions = popup.querySelector('.swal2-actions')
+    if (actions) { actions.style.margin = '8px 0 0'; actions.style.padding = '0' }
+    const footer = popup.querySelector('.swal2-footer')
+    if (footer) footer.style.display = 'none'
+  }
+  const _origSwalFire = Swal.fire.bind(Swal)
+  Swal.fire = function(opts) {
+    if (typeof opts === 'object' && opts !== null) {
+      const origDidOpen = opts.didOpen
+      opts = { ...opts, didOpen: (popup) => {
+        if (origDidOpen) origDidOpen(popup)
+        _swalCompact(popup)
+      }}
+    }
+    return _origSwalFire(opts)
+  }
 
   const swalDark = {
     background: '#1e1e1e',
@@ -2772,7 +2822,7 @@ body.recording .storyboard-panel {
       sky: 0x6db3f0,
       fog: 0x9ed4ff,
       fogNear: 50, fogFar: 100,
-      camY: 8, lookDown: 0.35, speed: 0.10,
+      camY: 8, lookDown: 0.35, speed: 0.12,
       headBob: 0.06, headBobFreq: 6,
       terrain(x, z) {
         // Colorful parkour platforms — wide, with gaps
@@ -2806,7 +2856,7 @@ body.recording .storyboard-panel {
       sky: 0x0a0505,
       fog: 0x080202,
       fogNear: 25, fogFar: 60,
-      camY: 7, lookDown: 0.32, speed: 0.09,
+      camY: 7, lookDown: 0.32, speed: 0.11,
       headBob: 0.04, headBobFreq: 5,
       terrain(x, z) {
         // Nether parkour — narrow bridges over void, lava floor
@@ -2851,7 +2901,7 @@ body.recording .storyboard-panel {
       sky: 0xb3e5fc,
       fog: 0xe1f5fe,
       fogNear: 55, fogFar: 110,
-      camY: 10, lookDown: 0.38, speed: 0.09,
+      camY: 10, lookDown: 0.38, speed: 0.11,
       headBob: 0.08, headBobFreq: 4,
       terrain(x, z) {
         // Floating islands with big gaps — dreamy
@@ -2887,7 +2937,7 @@ body.recording .storyboard-panel {
       sky: 0x01579b,
       fog: 0x0277bd,
       fogNear: 30, fogFar: 70,
-      camY: 8, lookDown: 0.3, speed: 0.08,
+      camY: 8, lookDown: 0.3, speed: 0.10,
       headBob: 0.12, headBobFreq: 2.5,
       terrain(x, z) {
         // Underwater — coral towers rising from sea floor
@@ -3052,7 +3102,7 @@ body.recording .storyboard-panel {
     cameraTime += dt
 
     // Forward movement — scale by delta time so speed is constant regardless of fps
-    cameraZ -= cfg.speed * (dt * 60)
+    cameraZ -= cfg.speed * dt * 160
 
     // Head bob (sprint rhythm)
     const bobPhase = cameraTime * cfg.headBobFreq
@@ -4258,6 +4308,47 @@ body.recording .storyboard-panel {
         '<div>正在傳送到字幕編輯器...</div>' +
       '</div>'
 
+    // Listen for postMessage result from vid-captions
+    function onSubtitleResult(e) {
+      if (e.origin !== VID_CAPTIONS_URL) return
+      if (!e.data || e.data.type !== 'vid-captions-result') return
+      window.removeEventListener('message', onSubtitleResult)
+
+      var videoResultUrl = e.data.videoUrl || ''
+      var resultFilename = e.data.filename || 'subtitled_video.mp4'
+
+      // Build full URL if relative
+      var fullUrl = videoResultUrl.startsWith('http')
+        ? videoResultUrl
+        : VID_CAPTIONS_URL + videoResultUrl
+
+      // Use DOM APIs instead of innerHTML to prevent XSS
+      content.textContent = ''
+      var wrapper = document.createElement('div')
+      wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0'
+
+      var title = document.createElement('div')
+      title.style.cssText = 'font-size:1.3em;color:var(--accent);font-weight:600'
+      title.textContent = '字幕版影片已完成'
+      wrapper.appendChild(title)
+
+      var video = document.createElement('video')
+      video.src = fullUrl
+      video.controls = true
+      video.style.cssText = 'width:100%;max-height:300px;border-radius:8px;background:#000'
+      wrapper.appendChild(video)
+
+      var link = document.createElement('a')
+      link.href = fullUrl
+      link.download = resultFilename
+      link.textContent = '下載字幕版影片'
+      link.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:8px 20px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-weight:500'
+      wrapper.appendChild(link)
+
+      content.appendChild(wrapper)
+    }
+    window.addEventListener('message', onSubtitleResult)
+
     try {
       // Upload video to vid-captions server
       var formData = new FormData()
@@ -4269,22 +4360,27 @@ body.recording .storyboard-panel {
       var uploadData = await uploadRes.json()
 
       if (!uploadData.success) {
+        window.removeEventListener('message', onSubtitleResult)
         content.innerHTML = '<div class="sub-progress" style="color:#e55">上傳失敗: ' + (uploadData.error || '未知錯誤') + '</div>'
         return
       }
 
-      // Open vid-captions editor with the video
+      // Open vid-captions editor with the video + origin params
       var videoPath = '/temp/' + uploadData.videoPath
-      var editorUrl = VID_CAPTIONS_URL + '/editor?import=' + encodeURIComponent(videoPath) + '&name=' + encodeURIComponent(filename)
+      var editorUrl = VID_CAPTIONS_URL + '/editor?import=' + encodeURIComponent(videoPath) +
+        '&name=' + encodeURIComponent(filename) +
+        '&source=reelmaker&origin=' + encodeURIComponent(location.origin)
       window.open(editorUrl, '_blank')
 
       content.innerHTML =
         '<div class="sub-progress" style="color:var(--accent)">' +
           '<div style="font-size:1.5em;margin-bottom:8px">&#10003;</div>' +
           '<div>已在新分頁開啟字幕編輯器</div>' +
+          '<div style="font-size:0.85em;opacity:0.7;margin-top:4px">完成編輯後可直接送回此頁面</div>' +
         '</div>'
 
     } catch (err) {
+      window.removeEventListener('message', onSubtitleResult)
       content.innerHTML =
         '<div class="sub-progress" style="color:#e55">' +
           '連線字幕編輯器失敗<br>' +
