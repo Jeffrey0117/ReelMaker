@@ -1719,6 +1719,7 @@ body.recording .storyboard-panel {
     <span style="font-size:13px;color:var(--text-muted)">分鏡：</span>
     <button id="sbAdd" class="sb-add-btn" title="上傳分鏡圖">+</button>
     <button id="sbFromAssets" class="sb-add-btn" title="從素材庫" style="font-size:11px">素材庫</button>
+    <button id="sbFromUrl" class="sb-add-btn" title="貼上圖片網址" style="font-size:11px">網址</button>
     <div class="sb-bar-thumbs" id="sbBarThumbs"></div>
     <input type="file" id="sbFileInput" accept="image/*" multiple style="display:none">
   </div>
@@ -1850,6 +1851,7 @@ body.recording .storyboard-panel {
   const sbBarThumbs = document.getElementById('sbBarThumbs')
   const sbAdd = document.getElementById('sbAdd')
   const sbFromAssets = document.getElementById('sbFromAssets')
+  const sbFromUrl = document.getElementById('sbFromUrl')
   const sbFileInput = document.getElementById('sbFileInput')
   const storyboardOverlay = document.getElementById('storyboardOverlayInner')
   const sbNav = document.getElementById('sbNav')
@@ -3260,6 +3262,56 @@ body.recording .storyboard-panel {
 
   // Asset library picker
   sbFromAssets.addEventListener('click', openAssetPicker)
+
+  // URL import with preview
+  sbFromUrl.addEventListener('click', async () => {
+    const result = await Swal.fire({
+      title: '貼上圖片網址',
+      input: 'url',
+      inputPlaceholder: 'https://example.com/image.png',
+      showCancelButton: true,
+      confirmButtonText: '新增',
+      cancelButtonText: '取消',
+      ...swalDark,
+      inputValidator: (value) => {
+        if (!value) return '請輸入網址'
+        try { new URL(value) } catch { return '請輸入有效的 URL' }
+      },
+      didOpen: (popup) => {
+        const input = popup.querySelector('.swal2-input')
+        const preview = document.createElement('img')
+        preview.style.cssText = 'max-width:100%;max-height:120px;margin-top:8px;border-radius:6px;display:none;object-fit:contain'
+        input.parentNode.insertBefore(preview, input.nextSibling)
+        let debounce
+        input.addEventListener('input', () => {
+          clearTimeout(debounce)
+          preview.style.display = 'none'
+          debounce = setTimeout(() => {
+            const val = input.value.trim()
+            if (!val) return
+            try { new URL(val) } catch { return }
+            const test = new Image()
+            test.onload = () => { preview.src = val; preview.style.display = 'block' }
+            test.onerror = () => { preview.style.display = 'none' }
+            test.src = val
+          }, 500)
+        })
+      },
+      preConfirm: (url) => {
+        return new Promise((resolve) => {
+          const testImg = new Image()
+          testImg.onload = () => resolve(url)
+          testImg.onerror = () => {
+            Swal.showValidationMessage('無法載入此圖片，請確認網址正確')
+            resolve(false)
+          }
+          testImg.src = url
+        })
+      },
+    })
+    if (!result.isConfirmed || !result.value) return
+    await addStoryboardUrl(result.value.trim(), '')
+  })
 
   function openAssetPicker() {
     const modal = document.createElement('div')
