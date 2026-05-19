@@ -3125,15 +3125,21 @@ body.recording .storyboard-panel {
       })
     })
 
-    // Click to open slideshow (edit bar)
+    // Click edit bar thumbnails
     sbBarThumbs.querySelectorAll('.sb-mini').forEach(el => {
       el.addEventListener('click', (e) => {
         if (e.target.classList.contains('sb-mini-del')) return
         const idx = parseInt(el.dataset.index, 10)
-        if (activeStoryboard === idx) {
-          hideStoryboard()
+        if (isRecording) {
+          // Recording mode: toggle overlay on right side
+          if (activeStoryboard === idx) {
+            hideStoryboard()
+          } else {
+            showStoryboard(idx)
+          }
         } else {
-          showStoryboard(idx)
+          // Edit mode: update left-side editor preview only
+          selectEpSlide(idx)
         }
       })
     })
@@ -3656,9 +3662,11 @@ body.recording .storyboard-panel {
     epSlidePreview.appendChild(nav)
     epSlidePreview.classList.add('visible')
 
-    // Click large image → open fullscreen overlay
-    img.style.cursor = 'pointer'
-    img.addEventListener('click', () => showStoryboard(idx))
+    // Click large image → open fullscreen overlay (only during recording)
+    img.style.cursor = 'default'
+    img.addEventListener('click', () => {
+      if (isRecording) showStoryboard(idx)
+    })
 
     // Scroll wheel zoom on preview image
     let epZoom = 1
