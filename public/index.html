@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/fix-webm-duration@1.0.6/fix-webm-duration.js"></script>
 <style>
 :root {
   --bg: #121212;
@@ -555,9 +556,9 @@ body.recording .rec-exit {
   right: 24px;
   z-index: 9999;
   width: calc((100vw - 100vh * 9 / 16) / 2 - 48px);
-  max-width: 360px;
-  min-width: 160px;
-  max-height: 55vh;
+  max-width: 480px;
+  min-width: 200px;
+  max-height: 70vh;
 }
 
 body.recording .teleprompter {
@@ -575,14 +576,14 @@ body.recording .teleprompter {
 
 .teleprompter textarea {
   flex: 1;
-  min-height: 200px;
+  min-height: 300px;
   background: rgba(30,30,30,0.85);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 12px;
   color: #f0f0f0;
-  font-size: 16px;
-  line-height: 1.7;
+  font-size: 18px;
+  line-height: 1.8;
   padding: 16px;
   resize: vertical;
   outline: none;
@@ -2396,6 +2397,7 @@ body.recording .storyboard-panel {
   let captureRaf = null
   let micStream = null
   let displayStream = null
+  let captureAudioCtx = null
 
   async function startCapture() {
     try {
@@ -2404,10 +2406,10 @@ body.recording .storyboard-panel {
         activatePreRendered()
       }
 
-      // 1. Get display stream (current tab)
+      // 1. Get display stream (current tab) — include system audio
       displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: 'browser' },
-        audio: false,
+        audio: true,
         preferCurrentTab: true
       })
 
@@ -2480,19 +2482,37 @@ body.recording .storyboard-panel {
       }
       drawFrame()
 
-      // 6. Combine canvas video + mic audio
+      // 6. Combine canvas video + all audio (system + mic)
       const canvasStream = captureCanvas.captureStream(30)
       const tracks = [...canvasStream.getVideoTracks()]
-      if (micStream) tracks.push(...micStream.getAudioTracks())
+
+      // Merge system audio + mic audio via AudioContext
+      const systemAudioTracks = displayStream.getAudioTracks()
+      const micAudioTracks = micStream ? micStream.getAudioTracks() : []
+      if (systemAudioTracks.length > 0 || micAudioTracks.length > 0) {
+        const audioCtx = new AudioContext()
+        const dest = audioCtx.createMediaStreamDestination()
+        if (systemAudioTracks.length > 0) {
+          audioCtx.createMediaStreamSource(new MediaStream(systemAudioTracks)).connect(dest)
+        }
+        if (micAudioTracks.length > 0) {
+          audioCtx.createMediaStreamSource(new MediaStream(micAudioTracks)).connect(dest)
+        }
+        tracks.push(...dest.stream.getAudioTracks())
+        captureAudioCtx = audioCtx
+      }
       const combinedStream = new MediaStream(tracks)
 
       // 7. Record
       recordedChunks = []
-      mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      const recMime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
           ? 'video/webm;codecs=vp9'
-          : 'video/webm',
-        videoBitsPerSecond: 8_000_000,
+          : 'video/webm'
+      mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: recMime,
+        videoBitsPerSecond: 16_000_000,
       })
 
       mediaRecorder.ondataavailable = (e) => {
@@ -2500,10 +2520,19 @@ body.recording .storyboard-panel {
       }
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' })
+        const rawBlob = new Blob(recordedChunks, { type: 'video/webm' })
+        const duration = Date.now() - recStartTime
         const topicLabel = (topics[currentIndex] || {}).name || 'recording'
         const filename = topicLabel + '_' + new Date().toISOString().slice(0, 10) + '.webm'
-        showPostRecordModal(blob, filename)
+
+        // Fix webm duration metadata so seekbar works correctly
+        if (typeof ysFixWebmDuration === 'function') {
+          ysFixWebmDuration(rawBlob, duration, (fixedBlob) => {
+            showPostRecordModal(fixedBlob, filename)
+          })
+        } else {
+          showPostRecordModal(rawBlob, filename)
+        }
         cleanupCapture()
       }
 
@@ -2540,6 +2569,7 @@ body.recording .storyboard-panel {
     if (displayStream) { displayStream.getTracks().forEach(t => t.stop()); displayStream = null }
     if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null }
     if (captureVideo) { captureVideo.pause(); captureVideo.srcObject = null; captureVideo = null }
+    if (captureAudioCtx) { captureAudioCtx.close(); captureAudioCtx = null }
     captureCanvas = null
     captureCtx = null
     recBtn.classList.remove('is-recording')
