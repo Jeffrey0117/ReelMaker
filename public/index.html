@@ -675,20 +675,6 @@ body.recording .teleprompter {
   display: none;
 }
 
-.prerender-status {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  background: rgba(30,30,30,0.7);
-  backdrop-filter: blur(8px);
-  padding: 4px 10px;
-  border-radius: 12px;
-  white-space: nowrap;
-  display: none;
-}
-
-.prerender-status.visible {
-  display: block;
-}
 
 /* 3D scene selector */
 .scene-select {
@@ -1750,7 +1736,6 @@ body.recording .storyboard-panel {
 </div>
 
 <div class="rec-controls">
-  <div class="prerender-status" id="prerenderStatus"></div>
   <div class="rec-timer" id="recTimer"><span class="live-dot"></span><span id="recTime">00:00</span></div>
   <button class="rec-btn" id="recBtn" title="開始錄影"><div class="dot"></div></button>
   <select id="splitSelect" class="split-select" title="上下比例">
@@ -1960,7 +1945,6 @@ body.recording .storyboard-panel {
   const edImg = document.getElementById('edImg')
   const edClear = document.getElementById('edClear')
   const bg3dVideo = document.getElementById('bg3dVideo')
-  const prerenderStatus = document.getElementById('prerenderStatus')
   const storyboardPanel = document.getElementById('storyboardPanel')
   const sbPanelGrid = document.getElementById('sbPanelGrid')
   const sbBarThumbs = document.getElementById('sbBarThumbs')
@@ -1994,8 +1978,11 @@ body.recording .storyboard-panel {
   let recTickInterval = null
   let mm = null
   let webcamStream = null
-  let preRenderedBlob = null
-  let preRenderRecorder = null
+  // Static pre-recorded 3D scene videos { grassland: '/videos/bg-grassland.webm', ... }
+  const bg3dVideos = {}
+  ;['grassland', 'cave', 'sky', 'ocean'].forEach(id => {
+    bg3dVideos[id] = '/videos/bg-' + id + '.webm'
+  })
   let activeStoryboard = -1 // index of currently shown storyboard, -1 = none
   let slidesIndex = 0 // current slide in "簡報" background mode
 
@@ -2391,10 +2378,6 @@ body.recording .storyboard-panel {
           camera3d.aspect = bg3d.clientWidth / bg3d.clientHeight
           camera3d.updateProjectionMatrix()
         }
-        // Start pre-rendering 3D to video blob
-        if (!preRenderedBlob && !preRenderRecorder) {
-          preRender3D()
-        }
       }
     }, 200)
   }
@@ -2461,12 +2444,9 @@ body.recording .storyboard-panel {
 
   async function startCapture() {
     try {
-      // Switch to pre-rendered 3D video if available (frees GPU)
-      if (getSelectedSource() === '3d' && preRenderedBlob) {
+      // Switch to static pre-recorded 3D video (frees GPU completely)
+      if (getSelectedSource() === '3d') {
         activatePreRendered()
-      } else if (getSelectedSource() === '3d') {
-        // Throttle live 3D to ~30fps during recording to free GPU for capture
-        throttle3D = true
       }
 
       // 1. Get display stream (current tab) — include system audio
@@ -2508,15 +2488,7 @@ body.recording .storyboard-panel {
       })
 
       // 5. Draw loop — crop center 9:16 from tab capture + storyboard overlay
-      let lastDrawFrame = 0
       function drawFrame() {
-        // Throttle to ~30fps to match captureStream(30), avoid wasted GPU work
-        const now = performance.now()
-        if (now - lastDrawFrame < 32) {
-          captureRaf = requestAnimationFrame(drawFrame)
-          return
-        }
-        lastDrawFrame = now
         const srcW = captureVideo.videoWidth
         const srcH = captureVideo.videoHeight
         if (srcW && srcH) {
@@ -2656,7 +2628,6 @@ body.recording .storyboard-panel {
     recTickInterval = null
     recTimeSpan.textContent = '00:00'
     // Restore live 3D after recording ends
-    throttle3D = false
     if (getSelectedSource() === '3d' && bg3dVideo.style.display !== 'none') {
       deactivatePreRendered()
     }
@@ -3084,7 +3055,6 @@ body.recording .storyboard-panel {
     return { chunkZ, mesh }
   }
 
-  let throttle3D = false
   let lastRender3D = 0
 
   function animate3D() {
@@ -3092,8 +3062,6 @@ body.recording .storyboard-panel {
     raf3d = requestAnimationFrame(animate3D)
 
     const now = performance.now()
-    // Throttle to ~30fps during recording to free GPU for capture loop
-    if (throttle3D && now - lastRender3D < 32) return
     const dt = lastRender3D ? Math.min((now - lastRender3D) / 1000, 0.05) : 0.016
     lastRender3D = now
 
@@ -3155,47 +3123,11 @@ body.recording .storyboard-panel {
     }
   }
 
-  function preRender3D() {
-    if (preRenderedBlob || preRenderRecorder) return
-    if (!renderer3d || !bg3d || bg3d.clientWidth === 0) return
-
-    prerenderStatus.textContent = '3D 預錄中…'
-    prerenderStatus.classList.add('visible')
-
-    const stream = bg3d.captureStream(30)
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9' : 'video/webm'
-    const recorder = new MediaRecorder(stream, { mimeType })
-    const chunks = []
-    preRenderRecorder = recorder
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data)
-    }
-
-    recorder.onstop = () => {
-      preRenderRecorder = null
-      if (chunks.length > 0) {
-        preRenderedBlob = new Blob(chunks, { type: 'video/webm' })
-        prerenderStatus.textContent = '3D 預錄就緒'
-        setTimeout(() => { prerenderStatus.classList.remove('visible') }, 2000)
-      } else {
-        prerenderStatus.classList.remove('visible')
-      }
-    }
-
-    recorder.start(200)
-    setTimeout(() => {
-      if (recorder.state === 'recording') {
-        recorder.stop()
-      }
-    }, 30000)
-  }
-
   function activatePreRendered() {
-    if (!preRenderedBlob) return false
-    const url = URL.createObjectURL(preRenderedBlob)
-    bg3dVideo.src = url
+    const sceneId = getSceneId()
+    const videoUrl = bg3dVideos[sceneId]
+    if (!videoUrl) return false
+    bg3dVideo.src = videoUrl
     bg3dVideo.style.display = 'block'
     bg3d.style.display = 'none'
     bg3dVideo.play()
@@ -3216,11 +3148,6 @@ body.recording .storyboard-panel {
 
   function reset3DScene() {
     stop3DScene()
-    preRenderedBlob = null
-    if (preRenderRecorder && preRenderRecorder.state === 'recording') {
-      preRenderRecorder.stop()
-    }
-    preRenderRecorder = null
     deactivatePreRendered()
     if (scene3d) {
       terrainChunks.forEach(c => {

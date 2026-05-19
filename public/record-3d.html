@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>3D Scene Recorder</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<style>
+  body { margin: 0; background: #111; color: #eee; font-family: system-ui; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+  h1 { margin: 0 0 10px; font-size: 20px; }
+  #status { margin: 10px 0; font-size: 14px; color: #aaa; }
+  canvas { border: 1px solid #333; }
+  .done { color: #4caf50; font-weight: bold; }
+  .recording { color: #ff5722; }
+</style>
+</head><body>
+<h1>3D Scene Recorder</h1>
+<p id="status">準備中…</p>
+<canvas id="c" width="608" height="1080"></canvas>
+
+<script>
+const WIDTH = 608, HEIGHT = 1080 // 9:16 aspect, half-res for speed
+const RECORD_SECONDS = 45
+const SCENES_TO_RECORD = ['grassland', 'cave', 'sky', 'ocean']
+const CHUNK_SIZE = 16, VIEW_DIST = 6, BLOCK_SIZE = 1
+
+const statusEl = document.getElementById('status')
+const canvas = document.getElementById('c')
+
+// --- Shared utilities ---
+const noiseCache = {}
+function pseudoRandom(x, z) {
+  const key = x + ',' + z
+  if (noiseCache[key] !== undefined) return noiseCache[key]
+  const n = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453
+  const val = n - Math.floor(n)
+  noiseCache[key] = val
+  return val
+}
+
+// --- Scene configs (same as main app) ---
+const SCENES = {
+  grassland: {
+    sky: 0x6db3f0, fog: 0x9ed4ff, fogNear: 50, fogFar: 100,
+    camY: 8, lookDown: 0.35, speed: 0.10, headBob: 0.06, headBobFreq: 6,
+    terrain(x, z) {
+      const section = Math.floor(z / 6)
+      const inSection = z % 6
+      const platLen = 3 + Math.floor(pseudoRandom(section, 0) * 2)
+      if (inSection >= platLen) return -99
+      const offset = Math.floor(pseudoRandom(section, 10) * 5) - 2
+      const width = 2 + Math.floor(pseudoRandom(section, 2) * 3)
+      if (x < offset - width || x > offset + width) return -99
+      return Math.floor(pseudoRandom(section, 1) * 4) - 1
+    },
+    colors(x, z, y, maxY) {
+      const section = Math.floor(z / 6)
+      const palette = [0x4caf50, 0x2196f3, 0xff9800, 0xe91e63, 0x9c27b0,
+                       0x00bcd4, 0xffeb3b, 0x8bc34a, 0xff5722, 0x3f51b5]
+      const base = palette[Math.abs(section) % palette.length]
+      if (y === maxY) return base
+      const c = new THREE.Color(base)
+      c.multiplyScalar(0.55)
+      return c.getHex()
+    }
+  },
+  cave: {
+    sky: 0x0a0505, fog: 0x080202, fogNear: 25, fogFar: 60,
+    camY: 7, lookDown: 0.32, speed: 0.09, headBob: 0.04, headBobFreq: 5,
+    terrain(x, z) {
+      const section = Math.floor(z / 5)
+      const inSection = z % 5
+      const pathX = Math.abs(x)
+      const platLen = 3 + Math.floor(pseudoRandom(section, 4) * 2)
+      if (inSection >= platLen) {
+        return pathX <= 8 ? -4 : -99
+      }
+      const offset = Math.floor(pseudoRandom(section, 10) * 4) - 2
+      const bwidth = 1 + Math.floor(pseudoRandom(section, 5) * 2)
+      if (x >= offset - bwidth && x <= offset + bwidth) {
+        return Math.floor(pseudoRandom(section, 3) * 3)
+      }
+      return pathX <= 8 ? -4 : -99
+    },
+    colors(x, z, y, maxY, cameraTime) {
+      if (y <= -3) {
+        const flicker = pseudoRandom(x * 13 + Math.floor(cameraTime * 2), z * 7)
+        return flicker > 0.5 ? 0xff6d00 : [0xff3d00, 0xdd2c00, 0xff8f00][Math.abs((x + z) % 3)]
+      }
+      if (y === maxY) {
+        if (pseudoRandom(x * 7, z * 3) > 0.85) return 0xffab00
+        return [0x4e342e, 0x5d4037, 0x6d4c41, 0x3e2723][Math.abs((x * 3 + z) % 4)]
+      }
+      return [0x3e2723, 0x321911, 0x2a1508][Math.abs((x + z) % 3)]
+    }
+  },
+  sky: {
+    sky: 0xb3e5fc, fog: 0xe1f5fe, fogNear: 55, fogFar: 110,
+    camY: 10, lookDown: 0.38, speed: 0.09, headBob: 0.08, headBobFreq: 4,
+    terrain(x, z) {
+      const section = Math.floor(z / 8)
+      const inSection = z % 8
+      const islandLen = 4 + Math.floor(pseudoRandom(section, 8) * 2)
+      if (inSection >= islandLen) return -99
+      const cx = Math.floor(pseudoRandom(section, 11) * 4) - 2
+      const radius = 2 + Math.floor(pseudoRandom(section, 12) * 3)
+      const dist = Math.abs(x - cx)
+      if (dist > radius) return -99
+      return Math.floor((1 - dist / radius) * 3) + Math.floor(pseudoRandom(section, 9) * 3) - 1
+    },
+    colors(x, z, y, maxY) {
+      const section = Math.floor(z / 8)
+      if (y === maxY) {
+        const pastels = [0xffffff, 0xf8bbd0, 0xc5cae9, 0xb2dfdb, 0xdcedc8, 0xfff9c4, 0xf0f4c3]
+        return pastels[Math.abs(section * 3 + x) % pastels.length]
+      }
+      if (y >= maxY - 1) return [0x90caf9, 0x81d4fa, 0x80cbc4][Math.abs((x + z) % 3)]
+      return [0xb0bec5, 0x90a4ae, 0xcfd8dc][Math.abs((x + z) % 3)]
+    }
+  },
+  ocean: {
+    sky: 0x01579b, fog: 0x0277bd, fogNear: 30, fogFar: 70,
+    camY: 8, lookDown: 0.3, speed: 0.08, headBob: 0.12, headBobFreq: 2.5,
+    terrain(x, z) {
+      const pathX = Math.abs(x)
+      if (pathX > 8) return -99
+      const section = Math.floor(z / 4)
+      const inSection = z % 4
+      const hasCoral = pseudoRandom(Math.floor(x / 2) + section * 100, section) > 0.55
+      if (hasCoral && inSection < 2 + Math.floor(pseudoRandom(section, 6) * 2)) {
+        const coralH = Math.floor(pseudoRandom(x + section * 50, section * 3) * 5)
+        if (Math.abs(x) % 3 < 2) return coralH
+      }
+      return -3
+    },
+    colors(x, z, y, maxY) {
+      if (y <= -2) return [0xffcc80, 0xffe0b2, 0xffb74d][Math.abs((x + z) % 3)]
+      if (y === maxY) {
+        const corals = [0xff8a80, 0xf4ff81, 0x84ffff, 0xb388ff, 0xffab40, 0xa7ffeb, 0xea80fc, 0xff80ab]
+        return corals[Math.abs((x * 3 + z * 7) % corals.length)]
+      }
+      if (y >= maxY - 1) return [0x00897b, 0x00796b, 0x00695c][Math.abs((x + z) % 3)]
+      return [0x006064, 0x004d40, 0x00363a][Math.abs((x + z) % 3)]
+    }
+  }
+}
+
+// --- Hand + Sword ---
+function createHand() {
+  const group = new THREE.Group()
+  function handMat(color) {
+    return new THREE.MeshLambertMaterial({ color, depthTest: false })
+  }
+  function addPart(geo, color, pos, rot) {
+    const m = new THREE.Mesh(geo, handMat(color))
+    m.position.set(pos[0], pos[1], pos[2])
+    if (rot) m.rotation.set(rot[0], rot[1], rot[2])
+    m.renderOrder = 999
+    group.add(m)
+    return m
+  }
+  addPart(new THREE.BoxGeometry(0.22, 0.65, 0.22), 0xc68642, [0, -0.25, -0.1], [-0.4, 0, 0.2])
+  const swordGroup = new THREE.Group()
+  swordGroup.position.set(0.02, 0.3, -0.25)
+  swordGroup.rotation.set(-0.7, 0.1, 0.6)
+  const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.03), handMat(0x4a3728))
+  hilt.position.set(0, -0.08, 0); hilt.renderOrder = 999; swordGroup.add(hilt)
+  const wrap = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.035), handMat(0x2e7d32))
+  wrap.position.set(0, -0.04, 0); wrap.renderOrder = 999; swordGroup.add(wrap)
+  const crossguard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.04), handMat(0x5d4e37))
+  crossguard.position.set(0, 0.06, 0); crossguard.renderOrder = 999; swordGroup.add(crossguard)
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.5, 0.025), handMat(0x33c9dc))
+  blade.position.set(0, 0.36, 0); blade.renderOrder = 999; swordGroup.add(blade)
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.5, 0.026), handMat(0x7fecf5))
+  edge.position.set(0.035, 0.36, 0); edge.renderOrder = 999; swordGroup.add(edge)
+  const tip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.025), handMat(0x5ee8f5))
+  tip.position.set(0, 0.63, 0); tip.renderOrder = 999; swordGroup.add(tip)
+  group.add(swordGroup)
+  return group
+}
+
+// --- Terrain ---
+function createChunk(chunkZ, cfg, sceneId) {
+  const geometry = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+  const matrices = []
+  const colors = []
+  const tempMatrix = new THREE.Matrix4()
+
+  for (let x = -9; x <= 9; x++) {
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      const worldZ = chunkZ * CHUNK_SIZE + z
+      const height = cfg.terrain(x, worldZ)
+      if (height <= -90) continue
+      const maxY = height
+      const depth = sceneId === 'cave' ? 5 : 3
+      for (let y = maxY - depth; y <= maxY; y++) {
+        tempMatrix.makeTranslation(x * BLOCK_SIZE, y * BLOCK_SIZE, -worldZ * BLOCK_SIZE)
+        matrices.push(tempMatrix.clone())
+        const col = cfg.colors(x, worldZ, y, maxY, 0)
+        colors.push(new THREE.Color(typeof col === 'number' ? col : col))
+      }
+    }
+  }
+
+  if (matrices.length === 0) {
+    const material = new THREE.MeshLambertMaterial()
+    const mesh = new THREE.InstancedMesh(geometry, material, 1)
+    tempMatrix.makeTranslation(0, -100, 0)
+    mesh.setMatrixAt(0, tempMatrix)
+    mesh.instanceMatrix.needsUpdate = true
+    return { chunkZ, mesh }
+  }
+
+  const material = new THREE.MeshLambertMaterial()
+  const mesh = new THREE.InstancedMesh(geometry, material, matrices.length)
+  for (let i = 0; i < matrices.length; i++) {
+    mesh.setMatrixAt(i, matrices[i])
+    mesh.setColorAt(i, colors[i])
+  }
+  mesh.instanceMatrix.needsUpdate = true
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+  return { chunkZ, mesh }
+}
+
+// --- Record one scene ---
+function recordScene(sceneId) {
+  return new Promise((resolve) => {
+    // Clear noise cache for fresh scene
+    Object.keys(noiseCache).forEach(k => delete noiseCache[k])
+
+    const cfg = SCENES[sceneId]
+    statusEl.innerHTML = '<span class="recording">錄製中: ' + sceneId + ' (0/' + RECORD_SECONDS + 's)</span>'
+
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color(cfg.sky)
+    scene.fog = new THREE.Fog(cfg.fog, cfg.fogNear, cfg.fogFar)
+
+    const camera = new THREE.PerspectiveCamera(75, WIDTH / HEIGHT, 0.1, 150)
+    camera.position.set(0, cfg.camY, 0)
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
+    renderer.setSize(WIDTH, HEIGHT)
+    renderer.setPixelRatio(1)
+
+    const ambient = new THREE.AmbientLight(0xffffff, sceneId === 'cave' ? 0.25 : 0.55)
+    scene.add(ambient)
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9)
+    sun.position.set(3, 10, -5)
+    scene.add(sun)
+
+    if (sceneId === 'cave') {
+      const lava = new THREE.PointLight(0xff4400, 2.0, 20)
+      lava.position.set(0, 0, -8)
+      scene.add(lava)
+    }
+    if (sceneId === 'ocean') {
+      const caustic = new THREE.PointLight(0x00e5ff, 1.2, 30)
+      caustic.position.set(0, 5, -12)
+      scene.add(caustic)
+    }
+
+    const hand = createHand()
+    hand.position.set(0.55, -0.45, -0.6)
+    camera.add(hand)
+    scene.add(camera)
+
+    let cameraZ = 0
+    let cameraTime = 0
+    let terrainChunks = []
+
+    function generateTerrain() {
+      const camChunk = Math.floor(-cameraZ / CHUNK_SIZE)
+      terrainChunks = terrainChunks.filter(c => {
+        if (Math.abs(c.chunkZ - camChunk) > VIEW_DIST + 1) {
+          scene.remove(c.mesh)
+          c.mesh.geometry.dispose()
+          c.mesh.material.dispose()
+          return false
+        }
+        return true
+      })
+      for (let cz = camChunk - 1; cz <= camChunk + VIEW_DIST; cz++) {
+        if (terrainChunks.some(c => c.chunkZ === cz)) continue
+        const chunk = createChunk(cz, cfg, sceneId)
+        terrainChunks.push(chunk)
+        scene.add(chunk.mesh)
+      }
+    }
+
+    generateTerrain()
+
+    // Start recording
+    const stream = canvas.captureStream(30)
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9' : 'video/webm'
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 })
+    const chunks = []
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'bg-' + sceneId + '.webm'
+      a.click()
+
+      // Cleanup
+      cancelAnimationFrame(raf)
+      terrainChunks.forEach(c => {
+        scene.remove(c.mesh)
+        c.mesh.geometry.dispose()
+        c.mesh.material.dispose()
+      })
+      renderer.dispose()
+      setTimeout(resolve, 500)
+    }
+
+    recorder.start(200)
+    const startTime = performance.now()
+    let lastFrame = 0
+    let raf
+
+    function animate() {
+      raf = requestAnimationFrame(animate)
+
+      const now = performance.now()
+      const dt = lastFrame ? Math.min((now - lastFrame) / 1000, 0.05) : 0.016
+      lastFrame = now
+      cameraTime += dt
+      cameraZ -= cfg.speed * (dt * 60)
+
+      const bobPhase = cameraTime * cfg.headBobFreq
+      const bobY = Math.abs(Math.sin(bobPhase)) * cfg.headBob
+      const bobX = Math.sin(bobPhase * 0.5) * 0.04
+      const tiltZ = Math.sin(bobPhase) * 0.015
+
+      camera.position.set(bobX, cfg.camY + bobY, cameraZ)
+      camera.rotation.set(0, 0, 0)
+      camera.rotateX(-cfg.lookDown + Math.sin(cameraTime * 0.4) * 0.015)
+      camera.rotateZ(tiltZ)
+
+      if (hand) {
+        hand.rotation.x = -0.1 + Math.sin(bobPhase + 0.5) * 0.06
+        hand.rotation.z = 0.05 + Math.sin(bobPhase * 0.5) * 0.03
+        hand.position.y = -0.45 + Math.sin(bobPhase) * 0.03
+      }
+
+      const camChunk = Math.floor(-cameraZ / CHUNK_SIZE)
+      const furthest = terrainChunks.reduce((max, c) => Math.max(max, c.chunkZ), 0)
+      if (furthest < camChunk + VIEW_DIST) {
+        generateTerrain()
+      }
+
+      renderer.render(scene, camera)
+
+      const elapsed = Math.floor((now - startTime) / 1000)
+      statusEl.innerHTML = '<span class="recording">錄製中: ' + sceneId + ' (' + elapsed + '/' + RECORD_SECONDS + 's)</span>'
+
+      if (now - startTime >= RECORD_SECONDS * 1000) {
+        recorder.stop()
+        cancelAnimationFrame(raf)
+      }
+    }
+    animate()
+  })
+}
+
+// --- Run all scenes sequentially ---
+async function recordAll() {
+  for (let i = 0; i < SCENES_TO_RECORD.length; i++) {
+    const id = SCENES_TO_RECORD[i]
+    statusEl.textContent = '準備 ' + id + '… (' + (i + 1) + '/' + SCENES_TO_RECORD.length + ')'
+    await new Promise(r => setTimeout(r, 300))
+    await recordScene(id)
+  }
+  statusEl.innerHTML = '<span class="done">全部完成！請把 4 個 webm 檔放到 public/videos/ 資料夾</span>'
+}
+
+recordAll()
+</script>
+</body></html>
