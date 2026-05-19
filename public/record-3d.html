@@ -14,11 +14,11 @@
 </head><body>
 <h1>3D Scene Recorder</h1>
 <p id="status">準備中…</p>
-<canvas id="c" width="608" height="1080"></canvas>
+<canvas id="c" width="540" height="960"></canvas>
 
 <script>
-const WIDTH = 608, HEIGHT = 1080 // 9:16 aspect, half-res for speed
-const RECORD_SECONDS = 45
+const WIDTH = 540, HEIGHT = 960 // 9:16 aspect, lower res for fast encoding
+const RECORD_SECONDS = 20
 const SCENES_TO_RECORD = ['grassland', 'cave', 'sky', 'ocean']
 const CHUNK_SIZE = 16, VIEW_DIST = 6, BLOCK_SIZE = 1
 
@@ -288,10 +288,8 @@ function recordScene(sceneId) {
     generateTerrain()
 
     // Start recording
-    const stream = canvas.captureStream(30)
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9' : 'video/webm'
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 })
+    const stream = canvas.captureStream(24)
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm', videoBitsPerSecond: 3_000_000 })
     const chunks = []
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
     recorder.onstop = () => {
@@ -324,7 +322,7 @@ function recordScene(sceneId) {
       const dt = lastFrame ? Math.min((now - lastFrame) / 1000, 0.05) : 0.016
       lastFrame = now
       cameraTime += dt
-      cameraZ -= cfg.speed * (dt * 60)
+      cameraZ -= cfg.speed * (dt * 60) * 1.5
 
       const bobPhase = cameraTime * cfg.headBobFreq
       const bobY = Math.abs(Math.sin(bobPhase)) * cfg.headBob
