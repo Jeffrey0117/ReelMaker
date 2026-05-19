@@ -2464,11 +2464,9 @@ body.recording .storyboard-panel {
       // Switch to pre-rendered 3D video if available (frees GPU)
       if (getSelectedSource() === '3d' && preRenderedBlob) {
         activatePreRendered()
-      } else if (getSelectedSource() === '3d' && renderer3d) {
-        // Reduce 3D load during recording: half resolution + throttle to ~15fps
+      } else if (getSelectedSource() === '3d') {
+        // Throttle live 3D to ~30fps during recording to free GPU for capture
         throttle3D = true
-        renderer3d.setPixelRatio(0.5)
-        renderer3d.setSize(Math.round(bg3d.clientWidth / 2), Math.round(bg3d.clientHeight / 2))
       }
 
       // 1. Get display stream (current tab) — include system audio
@@ -2510,7 +2508,15 @@ body.recording .storyboard-panel {
       })
 
       // 5. Draw loop — crop center 9:16 from tab capture + storyboard overlay
+      let lastDrawFrame = 0
       function drawFrame() {
+        // Throttle to ~30fps to match captureStream(30), avoid wasted GPU work
+        const now = performance.now()
+        if (now - lastDrawFrame < 32) {
+          captureRaf = requestAnimationFrame(drawFrame)
+          return
+        }
+        lastDrawFrame = now
         const srcW = captureVideo.videoWidth
         const srcH = captureVideo.videoHeight
         if (srcW && srcH) {
@@ -2651,14 +2657,6 @@ body.recording .storyboard-panel {
     recTimeSpan.textContent = '00:00'
     // Restore live 3D after recording ends
     throttle3D = false
-    if (renderer3d) {
-      renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-      renderer3d.setSize(bg3d.clientWidth, bg3d.clientHeight)
-      if (camera3d) {
-        camera3d.aspect = bg3d.clientWidth / bg3d.clientHeight
-        camera3d.updateProjectionMatrix()
-      }
-    }
     if (getSelectedSource() === '3d' && bg3dVideo.style.display !== 'none') {
       deactivatePreRendered()
     }
@@ -3093,18 +3091,17 @@ body.recording .storyboard-panel {
     if (!renderer3d) return
     raf3d = requestAnimationFrame(animate3D)
 
-    // Throttle to ~15fps during recording to free GPU for capture loop
-    if (throttle3D) {
-      const now = performance.now()
-      if (now - lastRender3D < 64) return
-      lastRender3D = now
-    }
+    const now = performance.now()
+    // Throttle to ~30fps during recording to free GPU for capture loop
+    if (throttle3D && now - lastRender3D < 32) return
+    const dt = lastRender3D ? Math.min((now - lastRender3D) / 1000, 0.05) : 0.016
+    lastRender3D = now
 
     const cfg = SCENES[getSceneId()]
-    cameraTime += 0.016
+    cameraTime += dt
 
-    // Forward movement — like sprinting in parkour
-    cameraZ -= cfg.speed
+    // Forward movement — scale by delta time so speed is constant regardless of fps
+    cameraZ -= cfg.speed * (dt * 60)
 
     // Head bob (sprint rhythm)
     const bobPhase = cameraTime * cfg.headBobFreq
