@@ -3215,14 +3215,16 @@ body.recording .storyboard-panel {
         if (e.target.classList.contains('sb-del')) return
         const idx = parseInt(el.dataset.index, 10)
 
-        // Update slides background
+        // Slides mode: only switch background, no overlay
         if (getSelectedSource() === 'slides') {
           slidesIndex = idx
           renderSlidesBg()
           updateSbActiveIndicator()
+          if (activeStoryboard >= 0) hideStoryboard()
+          return
         }
 
-        // Toggle overlay
+        // Other modes: toggle overlay
         if (activeStoryboard === idx) {
           hideStoryboard()
         } else {
