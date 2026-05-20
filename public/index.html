@@ -2665,24 +2665,8 @@ html.swal2-height-auto, body.swal2-height-auto {
             cropY = (srcH - cropH) / 2
           }
           captureCtx.drawImage(captureVideo, cropX, cropY, cropW, cropH, 0, 0, 720, 1280)
-
-          // Draw storyboard overlay onto canvas if visible
-          const sbImg = storyboardOverlay.querySelector('img')
-          if (sbImg && sbImg.complete && sbImg.naturalWidth && storyboardOverlay.classList.contains('visible')) {
-            const paneRect = previewPane.getBoundingClientRect()
-            const imgRect = sbImg.getBoundingClientRect()
-            const relX = (imgRect.left + imgRect.width / 2 - paneRect.left) / paneRect.width
-            const relY = (imgRect.top + imgRect.height / 2 - paneRect.top) / paneRect.height
-            const scale = Math.min(
-              (720 * 0.9) / sbImg.naturalWidth,
-              (1280 * 0.9) / sbImg.naturalHeight
-            )
-            const drawW = sbImg.naturalWidth * scale
-            const drawH = sbImg.naturalHeight * scale
-            const drawX = relX * 720 - drawW / 2
-            const drawY = relY * 1280 - drawH / 2
-            captureCtx.drawImage(sbImg, drawX, drawY, drawW, drawH)
-          }
+          // Storyboard overlay is already captured via getDisplayMedia (current tab),
+          // so no need to draw it again — doing so causes a doubled image.
         }
         captureRaf = requestAnimationFrame(drawFrame)
       }
@@ -3325,9 +3309,22 @@ html.swal2-height-auto, body.swal2-height-auto {
     return (topics[currentIndex] || {}).storyboards || []
   }
 
-  async function addStoryboardFile(files) {
+  async function ensureTopicId() {
     const topic = topics[currentIndex]
-    if (!topic || !topic.id) return
+    if (!topic) return null
+    if (topic.id) return topic
+    const data = await apiPost('/api/topics', { name: topic.name || '未命名', markdown: topic.markdown || '' })
+    if (data.topic) {
+      topics[currentIndex] = { ...topic, ...data.topic }
+      renderTopicSelect()
+      return topics[currentIndex]
+    }
+    return null
+  }
+
+  async function addStoryboardFile(files) {
+    const topic = await ensureTopicId()
+    if (!topic) return
     const formData = new FormData()
     for (const file of files) {
       formData.append('file', file, file.name)
@@ -3344,8 +3341,8 @@ html.swal2-height-auto, body.swal2-height-auto {
   }
 
   async function addStoryboardUrl(url, name) {
-    const topic = topics[currentIndex]
-    if (!topic || !topic.id) return
+    const topic = await ensureTopicId()
+    if (!topic) return
     const data = await apiPost('/api/topics/' + topic.id + '/storyboards', { url, name })
     if (data.storyboards) {
       topics[currentIndex] = { ...topic, storyboards: data.storyboards }
