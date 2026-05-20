@@ -1183,30 +1183,6 @@ body.recording .storyboard-panel {
 }
 
 /* Storyboard slideshow navigation dots */
-.sb-nav {
-  position: absolute;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  z-index: 20;
-}
-
-.sb-nav .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--mm-text) 25%, transparent);
-  transition: background 0.2s, width 0.2s, border-radius 0.2s;
-  cursor: pointer;
-}
-
-.sb-nav .dot.active {
-  background: var(--accent);
-  width: 20px;
-  border-radius: 4px;
-}
 
 @keyframes sbFadeIn {
   from { opacity: 0; }
@@ -1832,7 +1808,7 @@ html.swal2-height-auto, body.swal2-height-auto {
     <svg id="markmap"></svg>
     <div class="slide-container" id="slideContainer"></div>
     <div class="slide-nav" id="slideNav"></div>
-    <div class="storyboard-overlay" id="storyboardOverlayInner"><div class="sb-nav" id="sbNav"></div></div>
+    <div class="storyboard-overlay" id="storyboardOverlayInner"></div>
     <div class="wb-layer" id="wbLayer">
       <canvas id="wbCanvas"></canvas>
     </div>
@@ -2109,7 +2085,6 @@ html.swal2-height-auto, body.swal2-height-auto {
   const sbFromUrl = document.getElementById('sbFromUrl')
   const sbFileInput = document.getElementById('sbFileInput')
   const storyboardOverlay = document.getElementById('storyboardOverlayInner')
-  const sbNav = document.getElementById('sbNav')
   const videoUrlBtn = document.getElementById('videoUrlBtn')
   const videoControls = document.getElementById('videoControls')
   const vcPlay = document.getElementById('vcPlay')
@@ -3477,7 +3452,7 @@ html.swal2-height-auto, body.swal2-height-auto {
     if (index < 0 || index >= sb.length) return
     activeStoryboard = index
 
-    // Remove existing img (keep sbNav)
+    // Remove existing img
     const oldImg = storyboardOverlay.querySelector('img')
     if (oldImg) oldImg.remove()
 
@@ -3485,13 +3460,9 @@ html.swal2-height-auto, body.swal2-height-auto {
     img.src = sb[index].url || sb[index].dataUrl || ''
     img.style.cursor = 'grab'
     img.draggable = false
-    storyboardOverlay.insertBefore(img, sbNav)
+    storyboardOverlay.appendChild(img)
     storyboardOverlay.classList.add('visible')
 
-    // Render navigation dots
-    sbNav.innerHTML = sb.map((_, i) =>
-      '<span class="dot' + (i === index ? ' active' : '') + '" data-sb-dot="' + i + '"></span>'
-    ).join('')
   }
 
   function hideStoryboard() {
@@ -3499,23 +3470,11 @@ html.swal2-height-auto, body.swal2-height-auto {
     storyboardOverlay.classList.remove('visible')
     const img = storyboardOverlay.querySelector('img')
     if (img) img.remove()
-    sbNav.innerHTML = ''
   }
-
-  // Navigation dot clicks
-  sbNav.addEventListener('click', (e) => {
-    const dot = e.target.closest('[data-sb-dot]')
-    if (!dot) return
-    e.stopPropagation()
-    showStoryboard(parseInt(dot.dataset.sbDot, 10))
-  })
 
   // Overlay: click zones — left 30% = prev, right 30% = next, center = close; img = drag
   storyboardOverlay.addEventListener('mousedown', (e) => {
     const img = storyboardOverlay.querySelector('img')
-
-    // Click on nav dot — handled by sbNav listener
-    if (e.target.closest('.sb-nav')) return
 
     // Click on image — start drag
     if (img && e.target === img) {
