@@ -1212,6 +1212,69 @@ body.recording .storyboard-panel {
   to { opacity: 1; }
 }
 
+/* SFX Soundboard Panel */
+.sfx-panel {
+  display: none;
+  position: fixed;
+  right: 24px;
+  z-index: 9998;
+  width: calc((100vw - 100vh * 9 / 16) / 2 - 48px);
+  max-width: 360px;
+  min-width: 160px;
+}
+
+body.recording .sfx-panel {
+  display: block;
+}
+
+.sfx-panel-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.5);
+  padding: 6px 12px;
+  letter-spacing: 0.5px;
+}
+
+.sfx-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.sfx-btn {
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: #f0f0f0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 10px 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sfx-btn:hover {
+  background: rgba(50,50,50,0.9);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.sfx-btn:active {
+  transform: scale(0.95);
+}
+
+.sfx-btn.playing {
+  background: rgba(255,107,74,0.3);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 /* Bottom bar storyboard section */
 .storyboard-bar {
   display: flex;
@@ -1790,6 +1853,11 @@ html.swal2-height-auto, body.swal2-height-auto {
 <div class="storyboard-panel" id="storyboardPanel">
   <div class="storyboard-panel-header">分鏡</div>
   <div class="storyboard-panel-grid" id="sbPanelGrid"></div>
+</div>
+
+<div class="sfx-panel" id="sfxPanel">
+  <div class="sfx-panel-header">音效</div>
+  <div class="sfx-grid" id="sfxGrid"></div>
 </div>
 
 <div class="teleprompter" id="teleprompter">
@@ -4201,6 +4269,70 @@ html.swal2-height-auto, body.swal2-height-auto {
 
   // Resize canvas on window resize + mode switch
   window.addEventListener('resize', resizeWbCanvas)
+
+  // --- SFX Soundboard ---
+
+  var SFX_LIST = [
+    { name: 'FAAAH', file: 'faaah.mp3' },
+    { name: '放屁', file: 'dry-fart.mp3' },
+    { name: 'FAHHHH', file: 'fahhhhhhhhhhhhhh.mp3' },
+    { name: 'Bruh', file: 'movie_1.mp3' },
+    { name: 'IG Thud', file: 'vine-boom-sound-effect_KT89XIq.mp3' },
+    { name: '海綿寶寶 Fail', file: 'spongebob-fail.mp3' },
+    { name: 'Among Us', file: 'among-us-role-reveal-sound.mp3' },
+    { name: '答對', file: 'correct.mp3' },
+    { name: '過動', file: 'guo-dong.mp3' },
+    { name: '幾分鐘後', file: 'a-few-moments-later-sponge-bob-sfx-fun.mp3' },
+    { name: 'Aye Yo WTF', file: 'aye-yo.mp3' },
+    { name: 'Vine Boom', file: 'vine-boom.mp3' }
+  ]
+
+  var sfxGrid = document.getElementById('sfxGrid')
+  var sfxPanel = document.getElementById('sfxPanel')
+  var storyboardPanel = document.getElementById('storyboardPanel')
+
+  SFX_LIST.forEach(function(sfx) {
+    var audio = new Audio('sfx/' + sfx.file)
+    audio.preload = 'auto'
+
+    var btn = document.createElement('button')
+    btn.className = 'sfx-btn'
+    btn.textContent = sfx.name
+    btn.title = sfx.name
+
+    btn.addEventListener('click', function() {
+      audio.currentTime = 0
+      audio.play()
+      btn.classList.add('playing')
+    })
+
+    audio.addEventListener('ended', function() {
+      btn.classList.remove('playing')
+    })
+
+    audio.addEventListener('pause', function() {
+      btn.classList.remove('playing')
+    })
+
+    sfxGrid.appendChild(btn)
+  })
+
+  // Position SFX panel below storyboard panel
+  function positionSfxPanel() {
+    if (!document.body.classList.contains('recording')) return
+    var sbRect = storyboardPanel.getBoundingClientRect()
+    sfxPanel.style.top = (sbRect.bottom + 8) + 'px'
+  }
+
+  // Reposition when storyboard content changes or recording mode toggles
+  new MutationObserver(positionSfxPanel)
+    .observe(storyboardPanel, { childList: true, subtree: true })
+  new MutationObserver(function() {
+    if (document.body.classList.contains('recording')) {
+      requestAnimationFrame(positionSfxPanel)
+    }
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] })
+  window.addEventListener('resize', positionSfxPanel)
 
   // --- Teleprompter ---
 
