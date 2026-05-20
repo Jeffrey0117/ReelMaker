@@ -1217,6 +1217,7 @@ body.recording .storyboard-panel {
   display: block;
   position: fixed;
   right: 24px;
+  top: 24px;
   z-index: 9998;
   width: calc((100vw - 100vh * 9 / 16) / 2 - 48px);
   max-width: 360px;
@@ -4313,22 +4314,26 @@ html.swal2-height-auto, body.swal2-height-auto {
     sfxGrid.appendChild(btn)
   })
 
-  // Position SFX panel below storyboard panel
+  // Position SFX panel below storyboard panel (if visible)
   function positionSfxPanel() {
-    if (!document.body.classList.contains('recording')) return
-    var sbRect = storyboardPanel.getBoundingClientRect()
-    sfxPanel.style.top = (sbRect.bottom + 8) + 'px'
+    if (storyboardPanel && storyboardPanel.offsetParent !== null) {
+      var sbRect = storyboardPanel.getBoundingClientRect()
+      sfxPanel.style.top = (sbRect.bottom + 8) + 'px'
+    } else {
+      sfxPanel.style.top = '24px'
+    }
   }
 
   // Reposition when storyboard content changes or recording mode toggles
-  new MutationObserver(positionSfxPanel)
-    .observe(storyboardPanel, { childList: true, subtree: true })
+  if (storyboardPanel) {
+    new MutationObserver(positionSfxPanel)
+      .observe(storyboardPanel, { childList: true, subtree: true })
+  }
   new MutationObserver(function() {
-    if (document.body.classList.contains('recording')) {
-      requestAnimationFrame(positionSfxPanel)
-    }
+    requestAnimationFrame(positionSfxPanel)
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] })
   window.addEventListener('resize', positionSfxPanel)
+  positionSfxPanel()
 
   // --- Teleprompter ---
 
