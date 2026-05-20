@@ -97,6 +97,22 @@ body {
 
 .toolbar .spacer { flex: 1; }
 
+.save-indicator {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  padding: 2px 8px;
+  transition: color 0.3s, opacity 0.3s;
+}
+.save-indicator.saving {
+  color: rgba(255,200,50,0.8);
+}
+.save-indicator.saved {
+  color: rgba(100,220,100,0.8);
+}
+.save-indicator.error {
+  color: rgba(255,80,80,0.8);
+}
+
 /* Main content */
 .main {
   display: flex;
@@ -1789,9 +1805,11 @@ html.swal2-height-auto, body.swal2-height-auto {
   <h1>ReelMaker</h1>
   <select id="topicSelect"></select>
   <input type="text" id="topicName" placeholder="主題名稱" style="width:120px">
+  <span class="save-indicator" id="saveIndicator">已儲存</span>
   <button id="btnNew">新建</button>
   <button id="btnDelete" class="danger">刪除</button>
   <span class="spacer"></span>
+  <button id="btnPrompt" title="複製 AI 生成 Prompt">AI 樹狀圖</button>
   <div class="source-group" style="margin-right:12px">
     <label><input type="radio" name="renderMode" value="mindmap" checked> 心智圖</label>
     <label><input type="radio" name="renderMode" value="slides"> 簡報</label>
@@ -2055,6 +2073,8 @@ html.swal2-height-auto, body.swal2-height-auto {
   const topicName = document.getElementById('topicName')
   const btnNew = document.getElementById('btnNew')
   const btnDelete = document.getElementById('btnDelete')
+  const saveIndicator = document.getElementById('saveIndicator')
+  const btnPrompt = document.getElementById('btnPrompt')
   const btnRecord = document.getElementById('btnRecord')
   const bgLayer = document.getElementById('bgLayer')
   const slidesBg = document.getElementById('slidesBg')
@@ -2208,7 +2228,9 @@ html.swal2-height-auto, body.swal2-height-auto {
 
   function autoSave() {
     clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
+    saveIndicator.textContent = '未儲存'
+    saveIndicator.className = 'save-indicator'
+    saveTimer = setTimeout(async () => {
       const topic = topics[currentIndex]
       if (!topic || !topic.id) return
       const updates = {
@@ -2217,7 +2239,16 @@ html.swal2-height-auto, body.swal2-height-auto {
       }
       topics[currentIndex] = { ...topic, ...updates }
       renderTopicSelect()
-      apiPut('/api/topics/' + topic.id, updates)
+      saveIndicator.textContent = '儲存中...'
+      saveIndicator.className = 'save-indicator saving'
+      try {
+        await apiPut('/api/topics/' + topic.id, updates)
+        saveIndicator.textContent = '已儲存'
+        saveIndicator.className = 'save-indicator saved'
+      } catch (e) {
+        saveIndicator.textContent = '儲存失敗'
+        saveIndicator.className = 'save-indicator error'
+      }
     }, 1000)
   }
 
@@ -3745,6 +3776,26 @@ html.swal2-height-auto, body.swal2-height-auto {
     currentIndex = Math.min(currentIndex, topics.length - 1)
     renderTopicSelect()
     switchTopic(currentIndex)
+  })
+
+  btnPrompt.addEventListener('click', async function() {
+    var promptTemplate = '你是一個影片腳本樹狀圖產生器。請根據我提供的主題，生成一份 Markdown 格式的心智圖大綱，用於 Markmap 視覺化。\n\n格式規則：\n1. 用 # 作為主標題（只有一個）\n2. 用 ## 作為主要分支（3-5 個）\n3. 用 ### 作為子分支\n4. 用 - 作為細節要點\n5. 每個要點簡潔有力，適合當影片講稿提示\n6. 總共控制在 20-40 個節點\n\n範例格式：\n# 如何學好英文\n## 聽力訓練\n### Podcast\n- 每天 15 分鐘\n- 選有逐字稿的節目\n### 影片\n- YouTube 英文頻道\n- 開英文字幕\n## 口說練習\n### 跟讀法\n- 模仿母語者語調\n- 錄音比對\n### AI 對話\n- ChatGPT 語音模式\n- 設定情境練習\n\n請只輸出 Markdown，不要加任何解釋文字。\n\n我的主題：'
+    var { value, isConfirmed } = await Swal.fire({
+      title: 'AI 樹狀圖 Prompt',
+      html: '<p style="font-size:12px;color:#aaa;margin:0 0 8px">填入主題後複製，貼到 ChatGPT / Claude 即可生成</p>' +
+            '<textarea id="swalPromptArea" style="width:100%;height:260px;background:#111;color:#eee;border:1px solid #333;border-radius:8px;padding:10px;font-size:12px;font-family:monospace;resize:vertical">' +
+            promptTemplate + '</textarea>',
+      confirmButtonText: '複製到剪貼簿',
+      showCancelButton: true,
+      cancelButtonText: '關閉',
+      ...swalDark,
+      width: '36em',
+      preConfirm: () => document.getElementById('swalPromptArea').value
+    })
+    if (isConfirmed && value) {
+      await navigator.clipboard.writeText(value)
+      appAlert('已複製！貼到 AI 對話即可', '複製成功', 'success')
+    }
   })
 
   btnRecord.addEventListener('click', enterRecordingMode)
