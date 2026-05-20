@@ -1212,33 +1212,51 @@ body.recording .storyboard-panel {
   to { opacity: 1; }
 }
 
-/* SFX Soundboard Panel */
-.sfx-panel {
-  display: block;
+/* SFX Soundboard */
+.sfx-toggle {
   position: fixed;
-  right: 24px;
-  bottom: 80px;
-  z-index: 9998;
-  width: 280px;
-  background: rgba(20,20,28,0.92);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px;
-  padding: 8px;
+  right: 20px;
+  bottom: 20px;
+  z-index: 99999;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  background: rgba(30,30,30,0.9);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, background 0.15s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
+.sfx-toggle:hover { background: rgba(60,60,60,0.95); transform: scale(1.08); }
 
-body.recording .sfx-panel {
-  bottom: auto;
-  width: calc((100vw - 100vh * 9 / 16) / 2 - 48px);
-  max-width: 360px;
-  min-width: 160px;
+.sfx-panel {
+  display: none;
+  position: fixed;
+  right: 20px;
+  bottom: 74px;
+  z-index: 99999;
+  width: 300px;
+  background: rgba(20,20,28,0.95);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  pointer-events: auto;
 }
+.sfx-panel.open { display: block; }
 
 .sfx-panel-header {
   font-size: 11px;
   font-weight: 600;
   color: rgba(255,255,255,0.4);
-  padding: 2px 4px 6px;
+  padding: 0 4px 8px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -1246,17 +1264,17 @@ body.recording .sfx-panel {
 .sfx-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 6px;
 }
 
 .sfx-btn {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
-  color: #ccc;
+  color: #ddd;
   font-size: 10px;
-  font-weight: 500;
-  padding: 8px 2px;
+  font-weight: 600;
+  padding: 10px 2px;
   cursor: pointer;
   text-align: center;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
@@ -1264,20 +1282,16 @@ body.recording .sfx-panel {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: auto;
 }
-
 .sfx-btn:hover {
-  background: rgba(255,255,255,0.12);
-  border-color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.16);
+  border-color: rgba(255,255,255,0.25);
   color: #fff;
 }
-
-.sfx-btn:active {
-  transform: scale(0.93);
-}
-
+.sfx-btn:active { transform: scale(0.93); }
 .sfx-btn.playing {
-  background: rgba(255,107,74,0.25);
+  background: rgba(255,107,74,0.3);
   border-color: var(--accent);
   color: #fff;
 }
@@ -1862,6 +1876,7 @@ html.swal2-height-auto, body.swal2-height-auto {
   <div class="storyboard-panel-grid" id="sbPanelGrid"></div>
 </div>
 
+<button class="sfx-toggle" id="sfxToggle" title="音效面板">&#127925;</button>
 <div class="sfx-panel" id="sfxPanel">
   <div class="sfx-panel-header">音效</div>
   <div class="sfx-grid" id="sfxGrid"></div>
@@ -4296,7 +4311,19 @@ html.swal2-height-auto, body.swal2-height-auto {
 
   var sfxGrid = document.getElementById('sfxGrid')
   var sfxPanel = document.getElementById('sfxPanel')
-  var storyboardPanel = document.getElementById('storyboardPanel')
+  var sfxToggle = document.getElementById('sfxToggle')
+
+  // Toggle panel open/close
+  sfxToggle.addEventListener('click', function() {
+    sfxPanel.classList.toggle('open')
+  })
+
+  // Close panel when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!sfxPanel.contains(e.target) && e.target !== sfxToggle) {
+      sfxPanel.classList.remove('open')
+    }
+  })
 
   SFX_LIST.forEach(function(sfx) {
     var audio = new Audio('sfx/' + sfx.file)
@@ -4307,7 +4334,8 @@ html.swal2-height-auto, body.swal2-height-auto {
     btn.textContent = sfx.name
     btn.title = sfx.name
 
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
       audio.currentTime = 0
       audio.play()
       btn.classList.add('playing')
@@ -4323,29 +4351,6 @@ html.swal2-height-auto, body.swal2-height-auto {
 
     sfxGrid.appendChild(btn)
   })
-
-  // Position SFX panel below storyboard in recording mode
-  function positionSfxPanel() {
-    if (!document.body.classList.contains('recording')) {
-      sfxPanel.style.top = ''
-      return
-    }
-    if (storyboardPanel && storyboardPanel.offsetParent !== null) {
-      var sbRect = storyboardPanel.getBoundingClientRect()
-      sfxPanel.style.top = (sbRect.bottom + 8) + 'px'
-    } else {
-      sfxPanel.style.top = '24px'
-    }
-  }
-
-  if (storyboardPanel) {
-    new MutationObserver(positionSfxPanel)
-      .observe(storyboardPanel, { childList: true, subtree: true })
-  }
-  new MutationObserver(function() {
-    requestAnimationFrame(positionSfxPanel)
-  }).observe(document.body, { attributes: true, attributeFilter: ['class'] })
-  window.addEventListener('resize', positionSfxPanel)
 
   // --- Teleprompter ---
 
