@@ -1216,7 +1216,7 @@ body.recording .storyboard-panel {
 .sfx-toggle {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  bottom: 70px;
   z-index: 99999;
   width: 44px;
   height: 44px;
@@ -1230,16 +1230,21 @@ body.recording .storyboard-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s, background 0.15s;
+  transition: transform 0.15s, background 0.15s, left 0.2s, right 0.2s, bottom 0.2s;
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 .sfx-toggle:hover { background: rgba(60,60,60,0.95); transform: scale(1.08); }
+body.recording .sfx-toggle {
+  right: auto;
+  left: 80px;
+  bottom: 50px;
+}
 
 .sfx-panel {
   display: none;
   position: fixed;
   right: 20px;
-  bottom: 74px;
+  bottom: 124px;
   z-index: 99999;
   width: 300px;
   background: rgba(20,20,28,0.95);
@@ -1251,6 +1256,11 @@ body.recording .storyboard-panel {
   pointer-events: auto;
 }
 .sfx-panel.open { display: block; }
+body.recording .sfx-panel {
+  right: auto;
+  left: 80px;
+  bottom: 104px;
+}
 
 .sfx-panel-header {
   font-size: 11px;
