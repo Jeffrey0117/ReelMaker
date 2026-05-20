@@ -2018,7 +2018,8 @@ html.swal2-height-auto, body.swal2-height-auto {
   }
 
   function appAlert(text, title = '提示', icon = 'info') {
-    return Swal.fire({ title, text, icon, ...swalDark })
+    var iconClr = icon === 'success' ? '#66dc64' : icon === 'error' ? '#ff5050' : '#6ec1e4'
+    return Swal.fire({ title, text, icon, ...swalDark, iconColor: iconClr })
   }
 
   // --- API helpers ---
@@ -2211,13 +2212,11 @@ html.swal2-height-auto, body.swal2-height-auto {
   }
 
   async function saveTopic() {
-    const topic = topics[currentIndex]
-    if (!topic || !topic.id) return
     const { value, isConfirmed } = await Swal.fire({
-      title: '儲存企劃',
+      title: '儲存為企劃',
       input: 'text',
-      inputValue: topicName.value,
-      inputPlaceholder: '輸入企劃名稱',
+      inputValue: '',
+      inputPlaceholder: '輸入企劃名稱，例如：AI 趨勢',
       showCancelButton: true,
       confirmButtonText: '儲存',
       cancelButtonText: '取消',
@@ -2225,16 +2224,16 @@ html.swal2-height-auto, body.swal2-height-auto {
       inputValidator: (v) => !v && '請輸入企劃名稱',
     })
     if (!isConfirmed || !value) return
-    const updates = {
-      markdown: editor.value,
-      name: value.trim(),
-    }
-    topics[currentIndex] = { ...topic, ...updates }
-    topicName.value = value.trim()
-    renderTopicSelect()
+    var name = value.trim()
     try {
-      await apiPut('/api/topics/' + topic.id, updates)
-      appAlert('企劃已儲存', '儲存成功', 'success')
+      var data = await apiPost('/api/topics', { name, markdown: editor.value })
+      if (data.topic) {
+        topics.push(data.topic)
+        currentIndex = topics.length - 1
+        renderTopicSelect()
+        switchTopic(currentIndex)
+        appAlert('企劃「' + name + '」已建立', '儲存成功', 'success')
+      }
     } catch (e) {
       appAlert('儲存失敗，請重試', '錯誤', 'error')
     }
