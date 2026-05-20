@@ -1998,6 +1998,21 @@ html.swal2-height-auto, body.swal2-height-auto {
     return Swal.fire({ title, text, icon, ...swalDark, iconColor: iconClr })
   }
 
+  const Toast = Swal.mixin({
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 2000,
+    timerProgressBar: true,
+    background: '#1e1e1e',
+    color: '#ececec',
+  })
+
+  function showToast(title, icon = 'info') {
+    var iconClr = icon === 'success' ? '#66dc64' : icon === 'error' ? '#ff5050' : '#6ec1e4'
+    return Toast.fire({ title, icon, iconColor: iconClr })
+  }
+
   // --- API helpers ---
 
   async function apiGet(url) {
@@ -3300,17 +3315,23 @@ html.swal2-height-auto, body.swal2-height-auto {
   async function addStoryboardFile(files) {
     const topic = await ensureTopicId()
     if (!topic) return
+    showToast('上傳中...', 'info')
     const formData = new FormData()
     for (const file of files) {
       formData.append('file', file, file.name)
     }
-    const r = await fetch('/api/topics/' + topic.id + '/storyboards', {
-      method: 'POST',
-      body: formData,
-    })
-    const data = await r.json()
-    if (data.storyboards) {
-      topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+    try {
+      const r = await fetch('/api/topics/' + topic.id + '/storyboards', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await r.json()
+      if (data.storyboards) {
+        topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+        showToast('已新增 ' + files.length + ' 張分鏡', 'success')
+      }
+    } catch (e) {
+      showToast('上傳失敗', 'error')
     }
     renderStoryboards()
   }
@@ -3318,9 +3339,15 @@ html.swal2-height-auto, body.swal2-height-auto {
   async function addStoryboardUrl(url, name) {
     const topic = await ensureTopicId()
     if (!topic) return
-    const data = await apiPost('/api/topics/' + topic.id + '/storyboards', { url, name })
-    if (data.storyboards) {
-      topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+    showToast('新增中...', 'info')
+    try {
+      const data = await apiPost('/api/topics/' + topic.id + '/storyboards', { url, name })
+      if (data.storyboards) {
+        topics[currentIndex] = { ...topic, storyboards: data.storyboards }
+        showToast('已新增分鏡', 'success')
+      }
+    } catch (e) {
+      showToast('新增失敗', 'error')
     }
     renderStoryboards()
   }
