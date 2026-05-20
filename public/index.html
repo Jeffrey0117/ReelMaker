@@ -97,21 +97,6 @@ body {
 
 .toolbar .spacer { flex: 1; }
 
-.save-indicator {
-  font-size: 11px;
-  color: rgba(255,255,255,0.35);
-  padding: 2px 8px;
-  transition: color 0.3s, opacity 0.3s;
-}
-.save-indicator.saving {
-  color: rgba(255,200,50,0.8);
-}
-.save-indicator.saved {
-  color: rgba(100,220,100,0.8);
-}
-.save-indicator.error {
-  color: rgba(255,80,80,0.8);
-}
 
 /* Main content */
 .main {
@@ -1805,7 +1790,7 @@ html.swal2-height-auto, body.swal2-height-auto {
   <h1>ReelMaker</h1>
   <select id="topicSelect"></select>
   <input type="text" id="topicName" placeholder="主題名稱" style="width:120px">
-  <span class="save-indicator" id="saveIndicator">已儲存</span>
+  <button id="btnSave">儲存</button>
   <button id="btnNew">新建</button>
   <button id="btnDelete" class="danger">刪除</button>
   <span class="spacer"></span>
@@ -2073,7 +2058,7 @@ html.swal2-height-auto, body.swal2-height-auto {
   const topicName = document.getElementById('topicName')
   const btnNew = document.getElementById('btnNew')
   const btnDelete = document.getElementById('btnDelete')
-  const saveIndicator = document.getElementById('saveIndicator')
+  const btnSave = document.getElementById('btnSave')
   const btnPrompt = document.getElementById('btnPrompt')
   const btnRecord = document.getElementById('btnRecord')
   const bgLayer = document.getElementById('bgLayer')
@@ -2141,7 +2126,6 @@ html.swal2-height-auto, body.swal2-height-auto {
   // State
   let topics = []
   let currentIndex = 0
-  let saveTimer = null
   let mediaRecorder = null
   let recordedChunks = []
   let recStartTime = 0
@@ -2226,30 +2210,34 @@ html.swal2-height-auto, body.swal2-height-auto {
     renderStoryboards()
   }
 
-  function autoSave() {
-    clearTimeout(saveTimer)
-    saveIndicator.textContent = '未儲存'
-    saveIndicator.className = 'save-indicator'
-    saveTimer = setTimeout(async () => {
-      const topic = topics[currentIndex]
-      if (!topic || !topic.id) return
-      const updates = {
-        markdown: editor.value,
-        name: topicName.value,
-      }
-      topics[currentIndex] = { ...topic, ...updates }
-      renderTopicSelect()
-      saveIndicator.textContent = '儲存中...'
-      saveIndicator.className = 'save-indicator saving'
-      try {
-        await apiPut('/api/topics/' + topic.id, updates)
-        saveIndicator.textContent = '已儲存'
-        saveIndicator.className = 'save-indicator saved'
-      } catch (e) {
-        saveIndicator.textContent = '儲存失敗'
-        saveIndicator.className = 'save-indicator error'
-      }
-    }, 1000)
+  async function saveTopic() {
+    const topic = topics[currentIndex]
+    if (!topic || !topic.id) return
+    const { value, isConfirmed } = await Swal.fire({
+      title: '儲存企劃',
+      input: 'text',
+      inputValue: topicName.value,
+      inputPlaceholder: '輸入企劃名稱',
+      showCancelButton: true,
+      confirmButtonText: '儲存',
+      cancelButtonText: '取消',
+      ...swalDark,
+      inputValidator: (v) => !v && '請輸入企劃名稱',
+    })
+    if (!isConfirmed || !value) return
+    const updates = {
+      markdown: editor.value,
+      name: value.trim(),
+    }
+    topics[currentIndex] = { ...topic, ...updates }
+    topicName.value = value.trim()
+    renderTopicSelect()
+    try {
+      await apiPut('/api/topics/' + topic.id, updates)
+      appAlert('企劃已儲存', '儲存成功', 'success')
+    } catch (e) {
+      appAlert('儲存失敗，請重試', '錯誤', 'error')
+    }
   }
 
   // --- Markmap ---
@@ -3741,14 +3729,13 @@ html.swal2-height-auto, body.swal2-height-auto {
       currentSlide = Math.min(currentSlide, slides.length - 1)
       if (slides.length) renderSlide(currentSlide)
     }
-    autoSave()
   })
-
-  topicName.addEventListener('input', autoSave)
 
   topicSelect.addEventListener('change', () => {
     switchTopic(parseInt(topicSelect.value, 10))
   })
+
+  btnSave.addEventListener('click', saveTopic)
 
   btnNew.addEventListener('click', async () => {
     const name = await appPrompt('新主題名稱', '例如：AI 趨勢')
