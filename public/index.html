@@ -190,56 +190,6 @@ body {
   display: none;
 }
 
-.bottom-bar .file-label {
-  padding: 4px 10px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-alt);
-  color: var(--text);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.bottom-bar .file-label:hover {
-  border-color: var(--accent);
-}
-
-/* Video controls */
-.video-controls {
-  display: none;
-  align-items: center;
-  gap: 8px;
-}
-
-.video-controls button {
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-alt);
-  color: var(--text);
-  font-size: 12px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.video-controls button:hover {
-  border-color: var(--accent);
-}
-
-.video-controls input[type="range"] {
-  width: 70px;
-  height: 4px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.video-controls .vc-time {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-muted);
-  min-width: 36px;
-}
-
 /* Editor pane tabs */
 .editor-tabs {
   display: flex;
@@ -280,19 +230,6 @@ body {
 .editor-preview .ep-slide-preview {
   flex: 1;
   min-height: 0;
-}
-
-.ep-video-wrap {
-  margin-bottom: 16px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: #000;
-  flex-shrink: 0;
-}
-
-.ep-video-wrap video {
-  width: 100%;
-  display: block;
 }
 
 /* Storyboard slide preview (PPT normal view) */
@@ -391,7 +328,7 @@ body {
   margin-top: auto;
 }
 
-.ep-storyboard img {
+.ep-storyboard img, .ep-storyboard video {
   width: 60px;
   height: 60px;
   flex-shrink: 0;
@@ -402,11 +339,11 @@ body {
   transition: border-color 0.15s;
 }
 
-.ep-storyboard img:hover {
+.ep-storyboard img:hover, .ep-storyboard video:hover {
   border-color: var(--accent);
 }
 
-.ep-storyboard img.active {
+.ep-storyboard img.active, .ep-storyboard video.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
@@ -1114,7 +1051,7 @@ body.recording .storyboard-panel {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
-.sb-thumb img {
+.sb-thumb img, .sb-thumb video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -1187,6 +1124,97 @@ body.recording .storyboard-panel {
 @keyframes sbFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Storyboard overlay video */
+.storyboard-overlay video {
+  max-width: 90%;
+  max-height: 85%;
+  object-fit: contain;
+  border-radius: 8px;
+  animation: sbSlideIn 0.35s ease;
+}
+
+.sb-overlay-controls {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: 24px;
+  z-index: 20;
+}
+
+.sb-overlay-controls button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.sb-overlay-controls button:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.sb-overlay-controls input[type="range"] {
+  width: 80px;
+  accent-color: var(--accent);
+}
+
+.sb-overlay-controls .sb-vc-time {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Video thumbnail badge */
+.sb-thumb-video-badge,
+.sb-mini-video-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sb-thumb-video-badge::after,
+.sb-mini-video-badge::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 4px 0 4px 7px;
+  border-color: transparent transparent transparent #fff;
+  margin-left: 2px;
+}
+
+.sb-thumb, .sb-mini {
+  position: relative;
+}
+
+/* Preview tab video */
+.ep-slide-preview video {
+  max-width: 100%;
+  max-height: 40vh;
+  border-radius: 6px;
 }
 
 /* SFX Soundboard */
@@ -1327,7 +1355,7 @@ body.recording .sfx-panel {
   position: relative;
 }
 
-.sb-bar-thumbs .sb-mini img {
+.sb-bar-thumbs .sb-mini img, .sb-bar-thumbs .sb-mini video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -1795,9 +1823,6 @@ html.swal2-height-auto, body.swal2-height-auto {
     </div>
     <textarea id="editor" placeholder="# 你的主題&#10;## 第一點&#10;- 子項目 A&#10;- 子項目 B&#10;## 第二點&#10;- 子項目 C"></textarea>
     <div class="editor-preview" id="editorPreview" style="display:none">
-      <div class="ep-video-wrap" id="epVideoWrap" style="display:none">
-        <video id="epVideo" controls></video>
-      </div>
       <div class="ep-slide-preview" id="epSlidePreview"></div>
       <div class="ep-slide-label" id="epSlideLabel" style="display:none"></div>
       <div class="ep-storyboard" id="epStoryboard"></div>
@@ -1837,7 +1862,6 @@ html.swal2-height-auto, body.swal2-height-auto {
     <select id="recBgSource">
       <option value="3d">3D場景</option>
       <option value="slides">簡報</option>
-      <option value="upload">上傳影片</option>
       <option value="webcam">Webcam</option>
     </select>
   </div>
@@ -1885,7 +1909,6 @@ html.swal2-height-auto, body.swal2-height-auto {
   <div class="source-group">
     <label><input type="radio" name="bgSource" value="3d" checked> 3D場景</label>
     <label><input type="radio" name="bgSource" value="slides"> 簡報</label>
-    <label><input type="radio" name="bgSource" value="upload"> 上傳影片</label>
     <label><input type="radio" name="bgSource" value="webcam"> Webcam</label>
   </div>
   <select id="sceneSelect" class="scene-select">
@@ -1895,22 +1918,14 @@ html.swal2-height-auto, body.swal2-height-auto {
     <option value="ocean">海底世界</option>
   </select>
   <input type="color" id="bgColor" value="#000000" title="背景色">
-  <input type="file" id="videoFile" accept="video/*">
-  <label class="file-label" id="videoFileLabel" for="videoFile">選擇影片</label>
-  <button class="file-label" id="videoUrlBtn" style="display:none">貼上網址</button>
-  <div class="video-controls" id="videoControls">
-    <button id="vcPlay" title="播放/暫停">▶</button>
-    <input type="range" id="vcVolume" min="0" max="1" step="0.05" value="0.5">
-    <span id="vcTime" class="vc-time">0:00</span>
-  </div>
   <span style="width:1px;height:20px;background:var(--border);margin:0 8px"></span>
   <div class="storyboard-bar">
     <span style="font-size:13px;color:var(--text-muted)">分鏡：</span>
-    <button id="sbAdd" class="sb-add-btn" title="上傳分鏡圖">+</button>
+    <button id="sbAdd" class="sb-add-btn" title="上傳分鏡（圖片或影片）">+</button>
     <button id="sbFromAssets" class="sb-add-btn" title="從素材庫" style="font-size:11px">素材庫</button>
     <button id="sbFromUrl" class="sb-add-btn" title="貼上圖片網址" style="font-size:11px">網址</button>
     <div class="sb-bar-thumbs" id="sbBarThumbs"></div>
-    <input type="file" id="sbFileInput" accept="image/*" multiple style="display:none">
+    <input type="file" id="sbFileInput" accept="image/*,video/*" multiple style="display:none">
   </div>
   <span style="width:1px;height:20px;background:var(--border);margin:0 8px"></span>
   <div class="edit-draw-tools">
@@ -2058,7 +2073,6 @@ html.swal2-height-auto, body.swal2-height-auto {
   const bgVideo = document.getElementById('bgVideo')
   const webcamVideo = document.getElementById('webcamVideo')
   const bgColor = document.getElementById('bgColor')
-  const videoFile = document.getElementById('videoFile')
   const sourceRadios = document.querySelectorAll('input[name="bgSource"]')
   const bg3d = document.getElementById('bg3d')
   const sceneSelect = document.getElementById('sceneSelect')
@@ -2100,15 +2114,8 @@ html.swal2-height-auto, body.swal2-height-auto {
   const sbFromUrl = document.getElementById('sbFromUrl')
   const sbFileInput = document.getElementById('sbFileInput')
   const storyboardOverlay = document.getElementById('storyboardOverlayInner')
-  const videoUrlBtn = document.getElementById('videoUrlBtn')
-  const videoControls = document.getElementById('videoControls')
-  const vcPlay = document.getElementById('vcPlay')
-  const vcVolume = document.getElementById('vcVolume')
-  const vcTime = document.getElementById('vcTime')
   const editorTabs = document.querySelectorAll('.editor-tab')
   const editorPreview = document.getElementById('editorPreview')
-  const epVideoWrap = document.getElementById('epVideoWrap')
-  const epVideo = document.getElementById('epVideo')
   const epSlidePreview = document.getElementById('epSlidePreview')
   const epSlideLabel = document.getElementById('epSlideLabel')
   const epStoryboard = document.getElementById('epStoryboard')
@@ -2421,13 +2428,10 @@ html.swal2-height-auto, body.swal2-height-auto {
   function updateBgVisibility() {
     const source = getSelectedSource()
     slidesBg.style.display = source === 'slides' ? 'block' : 'none'
-    bgVideo.style.display = source === 'upload' ? 'block' : 'none'
+    bgVideo.style.display = 'none'
     webcamVideo.style.display = source === 'webcam' ? 'block' : 'none'
     bg3d.style.display = source === '3d' ? 'block' : 'none'
     bgColor.style.display = 'none'
-    document.getElementById('videoFileLabel').style.display = source === 'upload' ? 'inline-block' : 'none'
-    videoUrlBtn.style.display = source === 'upload' ? 'inline-block' : 'none'
-    videoControls.style.display = (source === 'upload' && bgVideo.src) ? 'inline-flex' : 'none'
     sceneSelect.style.display = source === '3d' ? 'inline-block' : 'none'
 
     if (source === 'webcam') {
@@ -2457,10 +2461,26 @@ html.swal2-height-auto, body.swal2-height-auto {
 
     slidesIndex = Math.max(0, Math.min(slidesIndex, sb.length - 1))
 
-    const img = document.createElement('img')
-    img.src = sb[slidesIndex].url || sb[slidesIndex].dataUrl || ''
-    img.alt = '簡報 ' + (slidesIndex + 1)
-    slidesBg.appendChild(img)
+    const item = sb[slidesIndex]
+    const isVideo = getSbType(item) === 'video'
+    const src = item.url || item.dataUrl || ''
+    let media
+    if (isVideo) {
+      media = document.createElement('video')
+      media.src = src
+      media.loop = true
+      media.muted = true
+      media.autoplay = true
+      media.playsInline = true
+      media.style.width = '100%'
+      media.style.height = '100%'
+      media.style.objectFit = 'contain'
+    } else {
+      media = document.createElement('img')
+      media.src = src
+      media.alt = '簡報 ' + (slidesIndex + 1)
+    }
+    slidesBg.appendChild(media)
 
     if (sb.length > 1) {
       const nav = document.createElement('div')
@@ -2513,11 +2533,6 @@ html.swal2-height-auto, body.swal2-height-auto {
     enumerateMics()
     updateRenderMode()
 
-    if (getSelectedSource() === 'upload' && bgVideo.src) {
-      bgVideo.muted = true
-      bgVideo.play()
-    }
-
     setTimeout(() => {
       if (mm && getRenderMode() === 'mindmap') mm.fit()
       resizeWbCanvas()
@@ -2546,10 +2561,8 @@ html.swal2-height-auto, body.swal2-height-auto {
     document.body.classList.remove('swapped')
     bgLayer.style.display = 'none'
 
-    if (bgVideo.src) {
-      bgVideo.pause()
-      bgVideo.muted = false
-    }
+    // Pause any playing overlay video
+    hideStoryboard()
 
     setTimeout(() => {
       if (mm) mm.fit()
@@ -3299,6 +3312,13 @@ html.swal2-height-auto, body.swal2-height-auto {
     return (topics[currentIndex] || {}).storyboards || []
   }
 
+  function getSbType(item) {
+    if (item.type) return item.type
+    const url = (item.url || item.name || '').toLowerCase()
+    if (/\.(mp4|webm|mov|avi|mkv|m4v)(\?|$)/.test(url)) return 'video'
+    return 'image'
+  }
+
   async function ensureTopicId() {
     const topic = topics[currentIndex]
     if (!topic) return null
@@ -3328,7 +3348,7 @@ html.swal2-height-auto, body.swal2-height-auto {
       const data = await r.json()
       if (data.storyboards) {
         topics[currentIndex] = { ...topic, storyboards: data.storyboards }
-        showToast('已新增 ' + files.length + ' 張分鏡', 'success')
+        showToast('已新增 ' + files.length + ' 個分鏡', 'success')
       }
     } catch (e) {
       showToast('上傳失敗', 'error')
@@ -3374,21 +3394,31 @@ html.swal2-height-auto, body.swal2-height-auto {
 
     // Recording mode panel
     const isSlidesMode = getSelectedSource() === 'slides'
-    sbPanelGrid.innerHTML = sb.map((item, i) =>
-      '<div class="sb-thumb' + (isSlidesMode && i === slidesIndex ? ' active-bg' : '') + '" data-index="' + i + '">' +
-        '<img src="' + (item.url || item.dataUrl || '') + '" alt="">' +
+    sbPanelGrid.innerHTML = sb.map((item, i) => {
+      const isVideo = getSbType(item) === 'video'
+      const src = item.url || item.dataUrl || ''
+      const media = isVideo
+        ? '<video src="' + src + '" muted preload="metadata"></video><span class="sb-thumb-video-badge"></span>'
+        : '<img src="' + src + '" alt="">'
+      return '<div class="sb-thumb' + (isSlidesMode && i === slidesIndex ? ' active-bg' : '') + '" data-index="' + i + '">' +
+        media +
         '<span class="sb-index">' + (i + 1) + '</span>' +
         '<span class="sb-del" data-del="' + i + '">&times;</span>' +
       '</div>'
-    ).join('')
+    }).join('')
 
     // Edit mode bar thumbnails
-    sbBarThumbs.innerHTML = sb.map((item, i) =>
-      '<div class="sb-mini" data-index="' + i + '" draggable="true">' +
-        '<img src="' + (item.url || item.dataUrl || '') + '" alt="">' +
+    sbBarThumbs.innerHTML = sb.map((item, i) => {
+      const isVideo = getSbType(item) === 'video'
+      const src = item.url || item.dataUrl || ''
+      const media = isVideo
+        ? '<video src="' + src + '" muted preload="metadata"></video><span class="sb-mini-video-badge"></span>'
+        : '<img src="' + src + '" alt="">'
+      return '<div class="sb-mini" data-index="' + i + '" draggable="true">' +
+        media +
         '<span class="sb-mini-del" data-del="' + i + '">&times;</span>' +
       '</div>'
-    ).join('')
+    }).join('')
 
     // Click to toggle overlay (recording panel) — same thumb again = hide
     // If bg source is 'slides', also switch the background slide
@@ -3479,29 +3509,100 @@ html.swal2-height-auto, body.swal2-height-auto {
     if (index < 0 || index >= sb.length) return
     activeStoryboard = index
 
-    // Remove existing img
-    const oldImg = storyboardOverlay.querySelector('img')
-    if (oldImg) oldImg.remove()
+    // Clean up existing media
+    storyboardOverlay.innerHTML = ''
 
-    const img = document.createElement('img')
-    img.src = sb[index].url || sb[index].dataUrl || ''
-    img.style.cursor = 'grab'
-    img.draggable = false
-    storyboardOverlay.appendChild(img)
+    const item = sb[index]
+    const isVideo = getSbType(item) === 'video'
+    const src = item.url || item.dataUrl || ''
+
+    if (isVideo) {
+      // Video: fixed position + controls
+      const video = document.createElement('video')
+      video.src = src
+      video.preload = 'metadata'
+      video.style.cursor = 'default'
+      video.draggable = false
+      storyboardOverlay.appendChild(video)
+
+      // Controls bar
+      const controls = document.createElement('div')
+      controls.className = 'sb-overlay-controls'
+
+      const playBtn = document.createElement('button')
+      playBtn.textContent = '\u25B6'
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (video.paused) {
+          video.play()
+          playBtn.textContent = '\u23F8'
+        } else {
+          video.pause()
+          playBtn.textContent = '\u25B6'
+        }
+      })
+
+      const volRange = document.createElement('input')
+      volRange.type = 'range'
+      volRange.min = '0'
+      volRange.max = '1'
+      volRange.step = '0.05'
+      volRange.value = '0.5'
+      video.volume = 0.5
+      volRange.addEventListener('input', (e) => {
+        e.stopPropagation()
+        video.volume = parseFloat(volRange.value)
+      })
+      volRange.addEventListener('mousedown', (e) => e.stopPropagation())
+
+      const timeSpan = document.createElement('span')
+      timeSpan.className = 'sb-vc-time'
+      timeSpan.textContent = '0:00'
+      video.addEventListener('timeupdate', () => {
+        timeSpan.textContent = formatVideoTime(video.currentTime)
+      })
+      video.addEventListener('play', () => { playBtn.textContent = '\u23F8' })
+      video.addEventListener('pause', () => { playBtn.textContent = '\u25B6' })
+      video.addEventListener('ended', () => { playBtn.textContent = '\u25B6' })
+
+      controls.appendChild(playBtn)
+      controls.appendChild(volRange)
+      controls.appendChild(timeSpan)
+      storyboardOverlay.appendChild(controls)
+
+      // Prevent click on controls from closing overlay
+      controls.addEventListener('mousedown', (e) => e.stopPropagation())
+
+    } else {
+      // Image: draggable
+      const img = document.createElement('img')
+      img.src = src
+      img.style.cursor = 'grab'
+      img.draggable = false
+      storyboardOverlay.appendChild(img)
+    }
+
     storyboardOverlay.classList.add('visible')
-
   }
 
   function hideStoryboard() {
     activeStoryboard = -1
     storyboardOverlay.classList.remove('visible')
-    const img = storyboardOverlay.querySelector('img')
-    if (img) img.remove()
+    // Pause any playing video before removing
+    const video = storyboardOverlay.querySelector('video')
+    if (video) video.pause()
+    storyboardOverlay.innerHTML = ''
   }
 
   // Overlay: click zones — left 30% = prev, right 30% = next, center = close; img = drag
   storyboardOverlay.addEventListener('mousedown', (e) => {
     const img = storyboardOverlay.querySelector('img')
+    const video = storyboardOverlay.querySelector('video')
+
+    // Click on video — don't drag, don't close
+    if (video && (e.target === video || e.target.closest('.sb-overlay-controls'))) {
+      return
+    }
 
     // Click on image — start drag
     if (img && e.target === img) {
@@ -3849,99 +3950,7 @@ html.swal2-height-auto, body.swal2-height-auto {
     updateBgVisibility()
   })
 
-  videoFile.addEventListener('change', (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const url = URL.createObjectURL(file)
-    bgVideo.src = url
-    bgVideo.volume = parseFloat(vcVolume.value)
-    bgVideo.load()
-    videoControls.style.display = 'inline-flex'
-    vcPlay.textContent = '▶'
-    vcTime.textContent = '0:00'
-    refreshEditorPreview()
-  })
-
-  // --- URL Video Import ---
-
-  videoUrlBtn.addEventListener('click', async () => {
-    const r = await Swal.fire({
-      title: '貼上影片網址',
-      input: 'url',
-      inputPlaceholder: 'https://youtube.com/watch?v=...',
-      showCancelButton: true,
-      confirmButtonText: '下載',
-      cancelButtonText: '取消',
-      ...swalDark,
-      inputValidator: (value) => {
-        if (!value) return '請輸入網址'
-        try { new URL(value) } catch { return '請輸入有效的 URL' }
-      },
-    })
-    if (!r.isConfirmed || !r.value) return
-    await downloadVideoFromUrl(r.value.trim())
-  })
-
-  async function downloadVideoFromUrl(url) {
-    let swalInstance = null
-    try {
-      swalInstance = Swal.fire({
-        title: '下載影片中…',
-        html: '正在送出請求',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false,
-        ...swalDark,
-        didOpen: () => Swal.showLoading(),
-      })
-
-      const result = await apiPost('/api/transcribe', { url })
-      const videoId = result.video_id || result.id
-      if (!videoId) throw new Error('未取得 video_id')
-
-      // Poll for download completion
-      const pollResult = await pollVideoStatus(videoId, (status) => {
-        Swal.update({ html: '狀態：' + status })
-      })
-
-      Swal.close()
-
-      const videoUrl = 'https://reelscript.isnowfriend.com/videos/' + pollResult.filename
-      bgVideo.src = videoUrl
-      bgVideo.volume = parseFloat(vcVolume.value)
-      bgVideo.load()
-      videoControls.style.display = 'inline-flex'
-      vcPlay.textContent = '▶'
-      vcTime.textContent = '0:00'
-      refreshEditorPreview()
-
-      appAlert('影片已載入', '完成', 'success')
-    } catch (err) {
-      Swal.close()
-      appAlert(err.message || '下載失敗', '錯誤', 'error')
-    }
-  }
-
-  async function pollVideoStatus(videoId, onStatus) {
-    const maxAttempts = 90 // 3 minutes max (90 * 2s)
-    for (let i = 0; i < maxAttempts; i++) {
-      if (i > 0) await new Promise(resolve => setTimeout(resolve, 2000))
-      const data = await apiGet('/api/transcribe/' + videoId)
-      const status = data.status || 'unknown'
-      if (onStatus) onStatus(status)
-      if (status !== 'downloading' && status !== 'pending' && status !== 'processing' && data.filename) {
-        return data
-      }
-      if (status === 'error' || status === 'failed') {
-        throw new Error('影片處理失敗')
-      }
-    }
-    throw new Error('下載逾時，請稍後再試')
-  }
-
-  // --- Video Controls ---
-
-  bgVideo.volume = 0.5
+  // --- Video Time Formatting (used by overlay controls) ---
 
   function formatVideoTime(seconds) {
     const h = Math.floor(seconds / 3600)
@@ -3950,28 +3959,6 @@ html.swal2-height-auto, body.swal2-height-auto {
     if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
     return m + ':' + String(s).padStart(2, '0')
   }
-
-  vcPlay.addEventListener('click', () => {
-    if (bgVideo.paused) {
-      bgVideo.play()
-      vcPlay.textContent = '⏸'
-    } else {
-      bgVideo.pause()
-      vcPlay.textContent = '▶'
-    }
-  })
-
-  vcVolume.addEventListener('input', () => {
-    bgVideo.volume = parseFloat(vcVolume.value)
-  })
-
-  bgVideo.addEventListener('timeupdate', () => {
-    vcTime.textContent = formatVideoTime(bgVideo.currentTime)
-  })
-
-  bgVideo.addEventListener('play', () => { vcPlay.textContent = '⏸' })
-  bgVideo.addEventListener('pause', () => { vcPlay.textContent = '▶' })
-  bgVideo.addEventListener('ended', () => { vcPlay.textContent = '▶' })
 
   // --- Editor Tabs + Preview ---
 
@@ -4012,9 +3999,23 @@ html.swal2-height-auto, body.swal2-height-auto {
 
     // Build slide preview content
     const item = sb[idx]
-    const img = document.createElement('img')
-    img.src = item.url || item.dataUrl || ''
-    img.alt = '分鏡 ' + (idx + 1)
+    const isVideo = getSbType(item) === 'video'
+    const src = item.url || item.dataUrl || ''
+
+    let media
+    if (isVideo) {
+      media = document.createElement('video')
+      media.src = src
+      media.controls = true
+      media.style.maxWidth = '100%'
+      media.style.maxHeight = '40vh'
+      media.style.borderRadius = '6px'
+      media.preload = 'metadata'
+    } else {
+      media = document.createElement('img')
+      media.src = src
+      media.alt = '分鏡 ' + (idx + 1)
+    }
 
     // Navigation dots
     const nav = document.createElement('div')
@@ -4040,55 +4041,57 @@ html.swal2-height-auto, body.swal2-height-auto {
     rightBtn.addEventListener('click', (e) => { e.stopPropagation(); selectEpSlide(idx + 1) })
 
     epSlidePreview.innerHTML = ''
-    epSlidePreview.appendChild(img)
+    epSlidePreview.appendChild(media)
     epSlidePreview.appendChild(leftBtn)
     epSlidePreview.appendChild(rightBtn)
     epSlidePreview.appendChild(nav)
     epSlidePreview.classList.add('visible')
 
-    // Click large image → open fullscreen overlay (only during recording)
-    img.style.cursor = 'default'
-    img.addEventListener('click', () => {
-      if (isRecording) showStoryboard(idx)
-    })
+    // Click media → open fullscreen overlay (only during recording, only for images)
+    if (!isVideo) {
+      media.style.cursor = 'default'
+      media.addEventListener('click', () => {
+        if (isRecording) showStoryboard(idx)
+      })
 
-    // Scroll wheel zoom on preview image
-    let epZoom = 1
-    epSlidePreview.addEventListener('wheel', (e) => {
-      e.preventDefault()
-      epZoom = Math.min(5, Math.max(1, epZoom + (e.deltaY < 0 ? 0.2 : -0.2)))
-      img.style.transform = epZoom === 1 ? '' : `scale(${epZoom})`
-      img.style.cursor = epZoom > 1 ? 'grab' : 'pointer'
-    }, { passive: false })
+      // Scroll wheel zoom on preview image
+      let epZoom = 1
+      epSlidePreview.addEventListener('wheel', (e) => {
+        e.preventDefault()
+        epZoom = Math.min(5, Math.max(1, epZoom + (e.deltaY < 0 ? 0.2 : -0.2)))
+        media.style.transform = epZoom === 1 ? '' : `scale(${epZoom})`
+        media.style.cursor = epZoom > 1 ? 'grab' : 'pointer'
+      }, { passive: false })
 
-    // Pan when zoomed
-    let epPanning = false, epPanX = 0, epPanY = 0, epStartX, epStartY
-    img.addEventListener('mousedown', (e) => {
-      if (epZoom <= 1) return
-      e.preventDefault()
-      epPanning = true
-      epStartX = e.clientX - epPanX
-      epStartY = e.clientY - epPanY
-      img.style.cursor = 'grabbing'
-    })
-    window.addEventListener('mousemove', (e) => {
-      if (!epPanning) return
-      epPanX = e.clientX - epStartX
-      epPanY = e.clientY - epStartY
-      img.style.transform = `scale(${epZoom}) translate(${epPanX / epZoom}px, ${epPanY / epZoom}px)`
-    })
-    window.addEventListener('mouseup', () => {
-      if (!epPanning) return
-      epPanning = false
-      img.style.cursor = epZoom > 1 ? 'grab' : 'pointer'
-    })
+      // Pan when zoomed
+      let epPanning = false, epPanX = 0, epPanY = 0, epStartX, epStartY
+      media.addEventListener('mousedown', (e) => {
+        if (epZoom <= 1) return
+        e.preventDefault()
+        epPanning = true
+        epStartX = e.clientX - epPanX
+        epStartY = e.clientY - epPanY
+        media.style.cursor = 'grabbing'
+      })
+      window.addEventListener('mousemove', (e) => {
+        if (!epPanning) return
+        epPanX = e.clientX - epStartX
+        epPanY = e.clientY - epStartY
+        media.style.transform = `scale(${epZoom}) translate(${epPanX / epZoom}px, ${epPanY / epZoom}px)`
+      })
+      window.addEventListener('mouseup', () => {
+        if (!epPanning) return
+        epPanning = false
+        media.style.cursor = epZoom > 1 ? 'grab' : 'pointer'
+      })
+    }
 
     // Label
     epSlideLabel.textContent = (idx + 1) + ' / ' + sb.length
     epSlideLabel.style.display = ''
 
     // Update thumbnail active state
-    epStoryboard.querySelectorAll('img').forEach((thumb, i) => {
+    epStoryboard.querySelectorAll('img, video').forEach((thumb, i) => {
       thumb.classList.toggle('active', i === idx)
     })
   }
@@ -4097,38 +4100,35 @@ html.swal2-height-auto, body.swal2-height-auto {
     // Skip if preview tab is not visible
     if (editorPreview.style.display === 'none') return
 
-    const hasVideo = bgVideo.src && bgVideo.src !== window.location.href
     const sb = getStoryboards()
-
-    // Video
-    if (hasVideo) {
-      epVideo.src = bgVideo.src
-      if (bgVideo.readyState >= 1) {
-        epVideo.currentTime = bgVideo.currentTime
-      }
-      epVideoWrap.style.display = ''
-    } else {
-      epVideo.removeAttribute('src')
-      epVideoWrap.style.display = 'none'
-    }
 
     // Storyboard thumbnails grid
     epStoryboard.innerHTML = ''
     sb.forEach((item, i) => {
-      const img = document.createElement('img')
-      img.src = item.url || item.dataUrl || ''
-      img.alt = '分鏡 ' + (i + 1)
-      img.title = '分鏡 ' + (i + 1)
-      if (i === epSelectedIndex) img.classList.add('active')
-      img.addEventListener('click', () => selectEpSlide(i))
-      epStoryboard.appendChild(img)
+      const isVideo = getSbType(item) === 'video'
+      const src = item.url || item.dataUrl || ''
+      let thumb
+      if (isVideo) {
+        thumb = document.createElement('video')
+        thumb.src = src
+        thumb.muted = true
+        thumb.preload = 'metadata'
+      } else {
+        thumb = document.createElement('img')
+        thumb.src = src
+        thumb.alt = '分鏡 ' + (i + 1)
+      }
+      thumb.title = '分鏡 ' + (i + 1)
+      if (i === epSelectedIndex) thumb.classList.add('active')
+      thumb.addEventListener('click', () => selectEpSlide(i))
+      epStoryboard.appendChild(thumb)
     })
 
-    // Slide preview (large image above grid)
+    // Slide preview (large view above grid)
     renderEpSlidePreview(sb)
 
     // Empty state
-    epEmpty.style.display = (!hasVideo && sb.length === 0) ? '' : 'none'
+    epEmpty.style.display = sb.length === 0 ? '' : 'none'
   }
 
   // --- Whiteboard (Drawing + Images) ---

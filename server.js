@@ -413,6 +413,7 @@ async function handleRequest(req, res) {
         const fileParts = parseMultipart(body, boundaryMatch[1]).filter(p => p.filename)
         if (fileParts.length === 0) return jsonRes(res, 400, { error: 'No file' })
 
+        const videoExts = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v']
         const newSbs = []
         for (const filePart of fileParts) {
           const ext = path.extname(filePart.filename).toLowerCase() || '.png'
@@ -422,6 +423,7 @@ async function handleRequest(req, res) {
             id: 'sb_' + crypto.randomBytes(6).toString('hex'),
             name: filePart.filename,
             url: '/data/assets/' + safeName,
+            type: videoExts.includes(ext) ? 'video' : 'image',
           })
         }
 
