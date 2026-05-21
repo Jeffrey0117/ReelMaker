@@ -2209,10 +2209,12 @@ html.swal2-height-auto, body.swal2-height-auto {
   }
 
   async function saveTopic() {
+    const topic = topics[currentIndex]
+    const existing = topic && topic.id
     const { value, isConfirmed } = await Swal.fire({
-      title: '儲存為企劃',
+      title: existing ? '儲存企劃' : '儲存為企劃',
       input: 'text',
-      inputValue: '',
+      inputValue: existing ? topic.name : '',
       inputPlaceholder: '輸入企劃名稱，例如：AI 趨勢',
       showCancelButton: true,
       confirmButtonText: '儲存',
@@ -2223,13 +2225,22 @@ html.swal2-height-auto, body.swal2-height-auto {
     if (!isConfirmed || !value) return
     var name = value.trim()
     try {
-      var data = await apiPost('/api/topics', { name, markdown: editor.value })
-      if (data.topic) {
-        topics.push(data.topic)
-        currentIndex = topics.length - 1
-        renderTopicSelect()
-        switchTopic(currentIndex)
-        appAlert('企劃「' + name + '」已建立', '儲存成功', 'success')
+      if (existing) {
+        var data = await apiPut('/api/topics/' + topic.id, { name, markdown: editor.value })
+        if (data.topic) {
+          topics[currentIndex] = data.topic
+          renderTopicSelect()
+          showToast('已儲存', 'success')
+        }
+      } else {
+        var data = await apiPost('/api/topics', { name, markdown: editor.value })
+        if (data.topic) {
+          topics.push(data.topic)
+          currentIndex = topics.length - 1
+          renderTopicSelect()
+          switchTopic(currentIndex)
+          showToast('企劃已建立', 'success')
+        }
       }
     } catch (e) {
       appAlert('儲存失敗，請重試', '錯誤', 'error')
