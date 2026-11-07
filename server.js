@@ -2,7 +2,28 @@ const http = require('http')
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
+
+// Load .env ourselves — CloudPipe's restart can't inject env without an ecosystem file.
+;(function loadEnv() {
+  let text = ''
+  try { text = fs.readFileSync(path.join(__dirname, '.env'), 'utf-8') } catch { return }
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/)
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2')
+  }
+})()
+
 const db = require('../../sdk/database')
+
+// Every /api route requires this token (header x-reelmaker-token). Unset = locked:
+// the API can delete data, accept 500MB uploads and spend transcription credits.
+const API_TOKEN = process.env.REELMAKER_TOKEN || ''
+function isAuthorized(req) {
+  if (!API_TOKEN) return false
+  const given = Buffer.from(String(req.headers['x-reelmaker-token'] || ''))
+  const expected = Buffer.from(API_TOKEN)
+  return given.length === expected.length && crypto.timingSafeEqual(given, expected)
+}
 
 const port = process.env.PORT || 4027
 
@@ -318,7 +339,7 @@ function jsonRes(res, status, data) {
 function corsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-reelmaker-token')
 }
 
 // --- Route handler ---
@@ -334,6 +355,12 @@ async function handleRequest(req, res) {
 
   const parsed = new URL(req.url, 'http://localhost')
   const pathname = parsed.pathname
+
+  if (pathname.startsWith('/api/') && !isAuthorized(req)) {
+    res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ error: 'unauthorized' }))
+    return
+  }
 
   try {
     // ── Health ──

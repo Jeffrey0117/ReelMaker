@@ -1,6 +1,37 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+<script>
+/* /api requires x-reelmaker-token. ?token= seeds it once; a 401 asks for it. */
+(function () {
+  var KEY = 'reelmaker_token';
+  var seeded = new URLSearchParams(location.search).get('token');
+  if (seeded) {
+    localStorage.setItem(KEY, seeded);
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+  var asked = false;
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var isApi = url.indexOf('/api/') === 0 || url.indexOf(location.origin + '/api/') === 0;
+    if (!isApi) return nativeFetch(input, init);
+    var opts = Object.assign({}, init);
+    var headers = new Headers(opts.headers || (typeof input !== 'string' && input.headers) || {});
+    var token = localStorage.getItem(KEY);
+    if (token) headers.set('x-reelmaker-token', token);
+    opts.headers = headers;
+    return nativeFetch(input, opts).then(function (res) {
+      if (res.status === 401 && !asked) {
+        asked = true;
+        var v = window.prompt('ReelMaker 通行碼(只需輸入一次,之後這台瀏覽器會記住)');
+        if (v && v.trim()) { localStorage.setItem(KEY, v.trim()); location.reload(); }
+      }
+      return res;
+    });
+  };
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ReelMaker</title>
