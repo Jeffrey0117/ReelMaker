@@ -1,0 +1,586 @@
+{
+  "repo": 1,
+  "name": "reelmaker",
+  "what": "Browser-based video knowledge visualization tool with storyboard overlays and recording",
+  "kind": "service",
+  "work": {
+    "guide": "CLAUDE.md",
+    "run": "npm start",
+    "deploy": "git push"
+  },
+  "offers": [
+    {
+      "id": "list_assets",
+      "what": "List uploaded media assets, optionally filtered by folder. Call to browse the asset library.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/assets",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "folder": {
+              "type": "string",
+              "description": "Optional folder name to filter assets by"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "upload_asset",
+      "what": "Upload a media file (multipart/form-data) into the asset library, optionally assigning it to a folder. Call to add new media.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/assets",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "The file to upload (multipart file field, max 50MB)"
+            },
+            "folder": {
+              "type": "string",
+              "description": "Target folder name; defaults to 'default'"
+            }
+          },
+          "required": [
+            "file"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_asset",
+      "what": "Delete a library asset by its id, removing both the record and the stored file. Call to remove unwanted media.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/assets/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Hex id of the asset to delete"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_folders",
+      "what": "List all asset folder names. Call to see available folders for organizing assets.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/folders",
+        "auth": "header"
+      }
+    },
+    {
+      "id": "create_folder",
+      "what": "Create a new asset folder (name is sanitized; max 50 chars). Call to organize assets into a new group.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/folders",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Folder name (alphanumeric, dash, underscore, CJK; max 50 chars)"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_folder",
+      "what": "Delete a folder by name and move its assets back to 'default'. The 'default' folder cannot be deleted. Call to remove an empty or unwanted folder.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/folders/{name}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "URL-encoded folder name to delete (cannot be 'default')"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_ideas",
+      "what": "List all reel script ideas with their sections, notes, status, and attached assets. Call to browse saved video ideas.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/ideas",
+        "auth": "header"
+      }
+    },
+    {
+      "id": "create_idea",
+      "what": "Create a new reel script idea with a title, scripted sections, and notes. Call to start a new short-form video concept.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/ideas",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Idea title (max 200 chars); defaults to '未命名點子'"
+            },
+            "sections": {
+              "type": "array",
+              "description": "Array of script sections, each an object like { label, content }"
+            },
+            "notes": {
+              "type": "string",
+              "description": "Free-form notes (max 5000 chars)"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "update_idea",
+      "what": "Update an existing idea's title, status, sections, notes, or assets by id. Call to edit a saved idea.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/ideas/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Hex id of the idea to update"
+            },
+            "title": {
+              "type": "string",
+              "description": "New title (max 200 chars)"
+            },
+            "status": {
+              "type": "string",
+              "description": "New status (e.g. 'idea')"
+            },
+            "sections": {
+              "type": "array",
+              "description": "Replacement array of script sections"
+            },
+            "notes": {
+              "type": "string",
+              "description": "New notes (max 5000 chars)"
+            },
+            "assets": {
+              "type": "array",
+              "description": "Replacement array of attached assets"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_idea",
+      "what": "Delete an idea by id, also removing any media files attached to it. Call to discard a video concept.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/ideas/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Hex id of the idea to delete"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "upload_idea_asset",
+      "what": "Upload a media file (multipart/form-data) and attach it directly to a specific idea. Call to add media to a video concept.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/ideas/{id}/assets",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Hex id of the idea to attach the asset to"
+            },
+            "file": {
+              "type": "string",
+              "description": "The file to upload (multipart file field, max 50MB)"
+            }
+          },
+          "required": [
+            "id",
+            "file"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_idea_asset",
+      "what": "Remove an asset from a specific idea by ideaId and assetId, deleting the stored file. Call to detach media from a concept.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/ideas/{ideaId}/assets/{assetId}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "ideaId": {
+              "type": "string",
+              "description": "Hex id of the idea"
+            },
+            "assetId": {
+              "type": "string",
+              "description": "Hex id of the attached asset to remove"
+            }
+          },
+          "required": [
+            "ideaId",
+            "assetId"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_topics",
+      "what": "List all topics in display order; each topic holds a markdown outline and its ordered storyboards. Call to browse the script outlines.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/topics",
+        "auth": "header"
+      }
+    },
+    {
+      "id": "create_topic",
+      "what": "Create a topic (a markdown outline for a video) appended at the end of the list; call to start a new script outline.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/topics",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Topic name (max 200 chars)."
+            },
+            "markdown": {
+              "type": "string",
+              "description": "Markdown outline; defaults to a heading with the topic name."
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "update_topic",
+      "what": "Update a topic's name, markdown outline, order or storyboards; only the provided fields change.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/topics/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Topic ID."
+            },
+            "name": {
+              "type": "string",
+              "description": "New topic name (max 200 chars)."
+            },
+            "markdown": {
+              "type": "string",
+              "description": "New markdown outline."
+            },
+            "order": {
+              "type": "number",
+              "description": "New sort position."
+            },
+            "storyboards": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              },
+              "description": "Full replacement storyboard list, each { id, name, url, type? }."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_topic",
+      "what": "Delete a topic and its uploaded storyboard files.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/topics/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Topic ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "add_topic_storyboard",
+      "what": "Attach an existing asset (by URL, e.g. from the asset library) to a topic as a storyboard; returns the updated storyboard list.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/topics/{id}/storyboards",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Topic ID."
+            },
+            "url": {
+              "type": "string",
+              "description": "URL of the image/video to reference, e.g. /data/assets/<filename>."
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional display name."
+            }
+          },
+          "required": [
+            "id",
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_topic_storyboard",
+      "what": "Remove one storyboard from a topic (and its uploaded file, if it was uploaded to the topic); returns the updated storyboard list.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/topics/{topicId}/storyboards/{sbId}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "topicId": {
+              "type": "string",
+              "description": "Topic ID."
+            },
+            "sbId": {
+              "type": "string",
+              "description": "Storyboard ID."
+            }
+          },
+          "required": [
+            "topicId",
+            "sbId"
+          ]
+        }
+      }
+    },
+    {
+      "id": "reorder_topic_storyboards",
+      "what": "Reorder a topic's storyboards; IDs not listed are kept at the end. Returns the updated storyboard list.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/topics/{id}/storyboards/reorder",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Topic ID."
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Storyboard IDs in the desired order."
+            }
+          },
+          "required": [
+            "id",
+            "ids"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_settings",
+      "what": "Get all key-value settings (e.g. folders, prompter_text); call to read the current teleprompter script or other saved state.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/settings",
+        "auth": "header"
+      }
+    },
+    {
+      "id": "update_setting",
+      "what": "Create or overwrite one setting by key (e.g. prompter_text to set the teleprompter script).",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/settings/{key}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "description": "Setting key (letters, digits, _ and -)."
+            },
+            "value": {
+              "type": "string",
+              "description": "New value; a string for prompter_text (other settings may hold other JSON types)."
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_benchmarks",
+      "what": "List benchmark records (reference videos submitted for analysis), newest first.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/benchmark",
+        "auth": "header"
+      }
+    },
+    {
+      "id": "create_benchmark",
+      "what": "Submit a reference video URL for analysis via ReelScript and save a benchmark record; poll get_benchmark until it is ready.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/benchmark",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the video to analyze."
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_benchmark",
+      "what": "Get a benchmark with its current processing status and, when ready, the full ReelScript video data (transcript, appreciation).",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/benchmark/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Benchmark ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "delete_benchmark",
+      "what": "Delete a benchmark record.",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/api/benchmark/{id}",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Benchmark ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
